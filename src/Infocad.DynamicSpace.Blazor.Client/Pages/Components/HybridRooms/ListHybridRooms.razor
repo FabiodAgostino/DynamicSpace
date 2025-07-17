@@ -1,0 +1,411 @@
+﻿@using System.Reflection
+@using Infocad.DynamicSpace
+@using Infocad.DynamicSpace.Blazor.Client.Pages.Components.Hybrids
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicFormats
+@using Microsoft.Extensions.DependencyInjection
+@using System.Text.Json
+@using Volo.Abp.Application.Services
+@using System.Dynamic
+@using System.Linq
+@inject IMessageService MessageService
+@inherits DynamicSpaceComponentBase
+
+<div class="page-header">
+    <Row Class="justify-content-between align-items-center">
+        <Column ColumnSize="ColumnSize.IsAuto">
+            <h2 class="page-title">@BaseName</h2>
+        </Column>
+        <Column ColumnSize="ColumnSize.IsAuto">
+            <Button Color="Color.Primary" Class="new-btn" Clicked="OpenCreateModal">
+                <i class="fas fa-plus-circle me-2"></i>
+                @L["NewEntity"]
+            </Button>
+        </Column>
+    </Row>
+</div>
+
+@if (Items != null && Items.Any())
+{
+    <div class="cards-container">
+        @foreach (var item in Items)
+        {
+            <div class="custom-card">
+                <div class="card-header-custom">
+                    <Row Class="justify-content-between align-items-center">
+                        <Column ColumnSize="ColumnSize.IsAuto">
+                            <h4 class="card-header-title">
+                                <i class="fas fa-door-open me-2"></i>
+                                @item.Name
+                            </h4>
+                        </Column>
+                        <Column ColumnSize="ColumnSize.IsAuto">
+                            <Dropdown Class="dropdown-custom">
+                                <DropdownToggle Color="Color.Primary" Size="Size.Small">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </DropdownToggle>
+                                <DropdownMenu>
+                                    <DropdownItem Clicked="@(async () => await OpenEditModal(item))">
+                                        <i class="fas fa-edit"></i>
+                                        @L["Edit"]
+                                    </DropdownItem>
+                                    <DropdownDivider />
+                                    <DropdownItem Clicked="@(async () => await ConfirmDelete(item))" Class="text-danger">
+                                        <i class="fas fa-trash-alt"></i>
+                                        @L["Delete"]
+                                    </DropdownItem>
+                                </DropdownMenu>
+                            </Dropdown>
+                        </Column>
+                    </Row>
+                </div>
+
+                <div class="card-body-custom">
+                    <div class="properties-container">
+                        @{
+                            var expando = ConvertExtensibleToExpando(item);
+                            var dictionary = (IDictionary<string, object>)expando;
+
+                            var displayProperties = new List<(string Label, string Value, string Icon, bool IsNavigation)>();
+
+                            displayProperties.Add(("Capacità", item.Capacity.ToString(), "fas fa-users",false));
+
+                            if (!string.IsNullOrWhiteSpace(item.Description))
+                            {
+                                displayProperties.Add(("Descrizione", item.Description, "fas fa-info-circle", false));
+                            }
+
+                            if (Entity != null && Attributes != null)
+                            {
+                                foreach (var entityAttribute in Entity.Attributes.OrderBy(a => a.Order))
+                                {
+                                    var attribute = Attributes.FirstOrDefault(f => f.Id == entityAttribute.DynamicAttributeId);
+                                    if (attribute != null)
+                                    {
+                                        dictionary.TryGetValue(attribute.Name, out var entry);
+                                        string value = string.Empty;
+
+                                        var format = Formats?.FirstOrDefault(f => f.Id == entityAttribute.DynamicFormatId);
+                                        if (format != null && !string.IsNullOrEmpty(format.FormatPattern))
+                                        {
+                                            value = format.ApplyFormat(entry);
+                                        }
+                                        else
+                                        {
+                                            value = entry?.ToString() ?? string.Empty;
+                                        }
+
+                                        string icon = attribute.Type switch
+                                        {
+                                            DynamicAttributeType.Text => "fas fa-font",
+                                            DynamicAttributeType.Number => "fas fa-hashtag",
+                                            DynamicAttributeType.Float => "fas fa-calculator",
+                                            DynamicAttributeType.Boolean => "fas fa-check-square",
+                                            DynamicAttributeType.DateTime => "fas fa-calendar-alt",
+                                            _ => "fas fa-tag"
+                                        };
+
+                                        displayProperties.Add((entityAttribute.Label, value, icon, attribute.Type == DynamicAttributeType.Navigation));
+                                    }
+                                }
+                            }
+                        }
+
+                        @foreach (var prop in displayProperties)
+                        {
+                            <div class="property-row">
+                                <div class="property-label">
+                                    <i class="@prop.Icon me-1"></i>
+                                    @prop.Label
+                                </div>
+                                <div class="property-value @(string.IsNullOrWhiteSpace(prop.Value) ? "empty" : "")">
+                                    @if (string.IsNullOrWhiteSpace(prop.Value))
+                                    {
+                                        <span>Non specificato</span>
+                                    }
+                                    else
+                                    {
+                                        if(!prop.IsNavigation)
+                                        {
+                                            <span>@prop.Value</span>
+                                        }
+                                        else
+                                        {
+                                            var expandoObj = JsonSerializer.Deserialize<ExpandoObject>(prop.Value, new JsonSerializerOptions
+                                            {
+                                                PropertyNameCaseInsensitive = true
+                                            });
+
+                                            var dict = (IDictionary<string, object>)expandoObj;
+                                            if (dict.TryGetValue("Value", out var value))
+                                            {
+                                                <a @onclick="@(() => _navigationModal.ShowModal(expandoObj))" class="clickable-link">@value</a>
+                                            }
+                                        }
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="empty-state">
+        <div class="empty-state-icon">
+            <i class="fas fa-inbox"></i>
+        </div>
+        <h4>Nessuna stanza trovata</h4>
+        <p class="text-muted">Non ci sono stanze configurate. Inizia creandone una nuova.</p>
+        <Button Color="Color.Primary" Class="new-btn" Clicked="OpenCreateModal">
+            <i class="fas fa-plus-circle me-2"></i>
+            @L["NewEntity"]
+        </Button>
+    </div>
+}
+<NavigationDetailModal @ref="_navigationModal" />
+
+<style>
+    .cards-container {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    @@media (min-width: 1200px) {
+        .cards-container {
+            grid-template-columns: repeat(3, 1fr);
+        }
+    }
+
+    @@media (min-width: 768px) and (max-width: 1199px) {
+        .cards-container {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @@media (max-width: 767px) {
+        .cards-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .custom-card {
+        border-radius: 16px;
+        box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+        transition: transform 0.2s, box-shadow 0.2s;
+        overflow: hidden;
+        border: none;
+        background-color: white;
+        display: flex;
+        flex-direction: column;
+        align-self: stretch;
+    }
+
+        .custom-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+        }
+
+    .card-header-custom {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 10px 15px;
+        border: none;
+        flex-shrink: 0;
+    }
+
+    a.clickable-link {
+        cursor: pointer;
+    }
+
+
+    .card-header-title {
+        margin: 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+    }
+
+    .card-body-custom {
+        padding: 12px 15px;
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .properties-container {
+        flex-grow: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .property-row {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding-bottom: 8px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+        .property-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+    .property-label {
+        font-weight: 500;
+        color: #6c757d;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .property-value {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #343a40;
+        word-wrap: break-word;
+        line-height: 1.3;
+        overflow-wrap: break-word;
+    }
+
+        .property-value.empty {
+            color: #9ca3af;
+            font-style: italic;
+            font-weight: normal;
+        }
+
+    .new-btn {
+        border-radius: 20px;
+        padding: 6px 16px;
+        font-weight: 500;
+        font-size: 0.9rem;
+        transition: all 0.2s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+    .dropdown-custom .btn {
+        border-radius: 20px;
+        box-shadow: none;
+        padding: 6px 10px;
+        border: none;
+        background: rgba(255,255,255,0.2);
+        color: white;
+    }
+
+        .dropdown-custom .btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+    .dropdown-menu {
+        border-radius: 12px;
+        border: none;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        padding: 6px 0;
+    }
+
+    .dropdown-item {
+        padding: 6px 12px;
+        transition: background-color 0.2s ease;
+        font-size: 0.9rem;
+    }
+
+        .dropdown-item:hover {
+            background-color: #f8f9fa;
+            color: #495057;
+        }
+
+        .dropdown-item i {
+            width: 14px;
+            margin-right: 6px;
+        }
+
+    .empty-state {
+        background-color: #f8f9fa;
+        border-radius: 16px;
+        padding: 30px 20px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        margin-top: 2rem;
+    }
+
+    .empty-state-icon {
+        font-size: 2.5rem;
+        color: #6c757d;
+        margin-bottom: 0.8rem;
+    }
+
+    .empty-state h4 {
+        color: #495057;
+        margin-bottom: 0.4rem;
+        font-size: 1.2rem;
+    }
+
+    .empty-state p {
+        color: #6c757d;
+        margin-bottom: 1.2rem;
+        font-size: 0.9rem;
+    }
+
+    .page-header {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        padding: 1.2rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+
+    .page-title {
+        margin: 0;
+        color: #495057;
+        font-weight: 700;
+        font-size: 1.8rem;
+    }
+
+    .card-skeleton {
+        background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+        background-size: 200% 100%;
+        animation: loading 1.5s infinite;
+        border-radius: 16px;
+        height: 140px;
+    }
+
+    @@keyframes loading {
+        0% {
+            background-position: 200% 0;
+        }
+
+        100% {
+            background-position: -200% 0;
+        }
+    }
+
+    @@media (max-width: 576px) {
+        .page-header {
+            padding: 1rem;
+        }
+
+        .card-header-custom {
+            padding: 8px 12px;
+        }
+
+        .card-body-custom {
+            padding: 10px 12px;
+        }
+
+        .page-title {
+            font-size: 1.4rem;
+        }
+    }
+</style>

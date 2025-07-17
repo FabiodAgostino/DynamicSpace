@@ -1,0 +1,996 @@
+﻿@page "/feature-management"
+@using Blazorise
+@using System.Collections.Generic
+@using Infocad.DynamicSpace.Feature
+@using Infocad.DynamicSpace.Localization
+@using Infocad.DynamicSpace.Permissions
+@using Microsoft.Extensions.Localization
+@using Volo.Abp.TenantManagement
+@inject IFeatureManagementAppService FeatureService
+@inject ITenantAppService TenantAppService
+
+@inherits DynamicSpaceComponentBase
+
+<div class="tenant-packages-modern-container">
+    <div class="tenant-packages-header">
+        <div class="tenant-packages-title">
+            <i class="fas fa-users me-2"></i>
+            <span>@L["TenantPackagesManagement"]</span>
+            <span class="badge bg-primary ms-2">@_tenants.Count</span>
+        </div>
+        <div class="header-actions">
+            <Button Color="Color.Info" Class="refresh-btn" Clicked="RefreshData" Title="Aggiorna dati">
+                <i class="fas fa-sync-alt"></i>
+            </Button>
+        </div>
+    </div>
+
+    <!-- Filtri -->
+    <div class="filters-container">
+        <Row>
+            <Column ColumnSize="ColumnSize.Is6">
+                <div class="search-container">
+                    <TextEdit @bind-Text="_searchTerm" 
+                              Placeholder="Cerca tenant..." 
+                              Class="search-input"
+                              @oninput="OnSearchChanged">
+                        <Feedback>
+                            <ValidationError />
+                        </Feedback>
+                    </TextEdit>
+                    <i class="fas fa-search search-icon"></i>
+                </div>
+            </Column>
+        </Row>
+    </div>
+
+    <!-- Alert Container -->
+    @if (!string.IsNullOrEmpty(_alertMessage))
+    {
+        <Alert Color="@_alertColor" Visible="true" Dismisable="true" Closed="() => _alertMessage = string.Empty">
+            <AlertMessage>@_alertMessage</AlertMessage>
+        </Alert>
+    }
+
+    <!-- Loading Indicator -->
+    @if (_isLoading)
+    {
+        <div class="loading-container">
+            <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+                <p class="mt-3">Caricamento tenant e feature...</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- Tabella Tenant -->
+        <div class="tenant-table-container">
+            <table class="tenant-table">
+                <thead>
+                    <tr>
+                        <th style="width: 80px;">
+                            <i class="fas fa-hashtag me-1"></i>
+                            ID
+                        </th>
+                        <th style="min-width: 200px;">
+                            <i class="fas fa-building me-1"></i>
+                            @L["Tenant"]
+                        </th>
+                        <th style="min-width: 150px;">
+                            <i class="fas fa-box me-1"></i>
+                            @L["Package"]
+                        </th>
+                        <th style="width: 120px;">
+                            <i class="fas fa-users me-1"></i>
+                            Max Utenti
+                        </th>
+                        <th style="width: 120px;">
+                            <i class="fas fa-cubes me-1"></i>
+                            Max Prodotti
+                        </th>
+                        <th style="width: 100px;">
+                            <i class="fas fa-file-pdf me-1"></i>
+                            PDF
+                        </th>
+                        <th style="width: 100px;">
+                            <i class="fas fa-plug me-1"></i>
+                            API
+                        </th>
+                        <th style="width: 180px; text-align: center;">
+                            <i class="fas fa-cogs me-1"></i>
+                            @L["Actions"]
+                        </th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tenant in FilteredTenants)
+                    {
+                        <tr class="tenant-row @(tenant.IsLoading ? "loading" : "")">
+                            <td>@tenant.TenantId.ToString("N")[..8]...</td>
+                            <td>
+                                <div class="tenant-info">
+                                    <strong>@tenant.Name</strong>
+                                    @if (!string.IsNullOrEmpty(tenant.NormalizedName))
+                                    {
+                                        <br><small class="text-muted">@tenant.NormalizedName</small>
+                                    }
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge @GetPackageBadgeClass(tenant.CurrentPackage)">
+                                    @(tenant.CurrentPackage ?? "Non configurato")
+                                </span>
+                            </td>
+                            <td>
+                                <span class="feature-value">@(tenant.MaxUsers ?? "N/A")</span>
+                            </td>
+                            <td>
+                                <span class="feature-value">@(tenant.MaxProducts ?? "N/A")</span>
+                            </td>
+                            <td>
+                                @if (tenant.PdfReporting.HasValue)
+                                {
+                                    <i class="fas fa-@(tenant.PdfReporting.Value ? "check text-success" : "times text-danger") feature-icon"></i>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">N/A</span>
+                                }
+                            </td>
+                            <td>
+                                @if (tenant.ExternalApiAccess.HasValue)
+                                {
+                                    <i class="fas fa-@(tenant.ExternalApiAccess.Value ? "check text-success" : "times text-danger") feature-icon"></i>
+                                }
+                                else
+                                {
+                                    <span class="text-muted">N/A</span>
+                                }
+                            </td>
+                            <td>
+                                <div class="action-buttons">
+                                    <Button Color="Color.Success" 
+                                            Size="Size.Small" 
+                                            Class="package-btn basic-btn" 
+                                            Clicked="() => SetBasicPackage(tenant)"
+                                            Disabled="@tenant.IsLoading"
+                                            Title="Configura pacchetto Basic">
+                                        @if (tenant.IsLoading && tenant.LoadingAction == "basic")
+                                        {
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-box"></i>
+                                        }
+                                        Basic
+                                    </Button>
+                                    <Button Color="Color.Primary" 
+                                            Size="Size.Small" 
+                                            Class="package-btn premium-btn" 
+                                            Clicked="() => SetPremiumPackage(tenant)"
+                                            Disabled="@tenant.IsLoading"
+                                            Title="Configura pacchetto Premium">
+                                        @if (tenant.IsLoading && tenant.LoadingAction == "premium")
+                                        {
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-crown"></i>
+                                        }
+                                        Premium
+                                    </Button>
+                                    <Button Color="Color.Warning" 
+                                            Size="Size.Small" 
+                                            Class="package-btn reset-btn" 
+                                            Clicked="() => ResetPackage(tenant)"
+                                            Disabled="@tenant.IsLoading"
+                                            Title="Rimuovi configurazione">
+                                        @if (tenant.IsLoading && tenant.LoadingAction == "reset")
+                                        {
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                        }
+                                        else
+                                        {
+                                            <i class="fas fa-undo"></i>
+                                        }
+                                    </Button>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                    
+                    @if (!FilteredTenants.Any())
+                    {
+                        <tr>
+                            <td colspan="8" class="empty-state-cell">
+                                <div class="empty-tenants-state">
+                                    <i class="fas fa-building"></i>
+                                    <p>@(string.IsNullOrEmpty(_searchTerm) ? "Nessun tenant trovato" : "Nessun tenant corrisponde ai filtri")</p>
+                                    <small class="text-muted">
+                                        @(string.IsNullOrEmpty(_searchTerm) ? "Non ci sono tenant configurati nel sistema" : "Prova a modificare i criteri di ricerca")
+                                    </small>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        @if (_tenants.Any())
+        {
+            <div class="tenant-footer">
+                <div class="tenant-stats">
+                    <span class="stat-item">
+                        <i class="fas fa-building text-primary me-1"></i>
+                        Totale Tenant: <strong>@_tenants.Count</strong>
+                    </span>
+                    <span class="stat-item">
+                        <i class="fas fa-box text-success me-1"></i>
+                        Basic: <strong>@_tenants.Count(t => t.CurrentPackage == "Basic")</strong>
+                    </span>
+                    <span class="stat-item">
+                        <i class="fas fa-crown text-warning me-1"></i>
+                        Premium: <strong>@_tenants.Count(t => t.CurrentPackage == "Premium")</strong>
+                    </span>
+                    <span class="stat-item">
+                        <i class="fas fa-cog text-info me-1"></i>
+                        Custom: <strong>@_tenants.Count(t => t.CurrentPackage == "Custom")</strong>
+                    </span>
+                    <span class="stat-item">
+                        <i class="fas fa-question-circle text-muted me-1"></i>
+                        Non configurati: <strong>@_tenants.Count(t => string.IsNullOrEmpty(t.CurrentPackage))</strong>
+                    </span>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<TenantFeatureDto> _tenants = new();
+    private string _searchTerm = string.Empty;
+    private string _packageFilter = string.Empty;
+    private string _alertMessage = string.Empty;
+    private Color _alertColor = Color.Info;
+    private bool _isLoading = false;
+
+    private IEnumerable<TenantFeatureDto> FilteredTenants =>
+        _tenants.Where(t => 
+            (string.IsNullOrEmpty(_searchTerm) || 
+             t.Name.ToLower().Contains(_searchTerm.ToLower()) ||
+             t.NormalizedName?.ToLower().Contains(_searchTerm.ToLower()) == true) &&
+            (string.IsNullOrEmpty(_packageFilter) ||
+             (_packageFilter == "None" && string.IsNullOrEmpty(t.CurrentPackage)) ||
+             t.CurrentPackage.ToLower() == _packageFilter.ToLower())
+        );
+
+    protected override async Task OnInitializedAsync()
+    {
+            await LoadTenants();
+    }
+
+    private async Task LoadTenants()
+    {
+        try
+        {
+            _isLoading = true;
+            StateHasChanged();
+
+            var tenantList = await TenantAppService.GetListAsync(new GetTenantsInput 
+            { 
+                MaxResultCount = 1000 
+            });
+            
+            _tenants.Clear();
+            
+            if (tenantList.Items.Any())
+            {
+                var tenantIds = tenantList.Items.Select(t => t.Id).ToList();
+                
+                var tenantFeatures = await FeatureService.GetAllTenantFeaturesBatchAsync(tenantIds);
+                
+                foreach (var tenant in tenantList.Items)
+                {
+                    var features = tenantFeatures.FirstOrDefault(f => f.TenantId == tenant.Id);
+                    
+                    var tenantInfo = new TenantFeatureDto
+                    {
+                        TenantId = tenant.Id,
+                        Name = tenant.Name,
+                        NormalizedName = tenant.Name?.ToLowerInvariant(),
+                        MaxUsers = features?.MaxUsers,
+                        MaxProducts = features?.MaxProducts,
+                        PdfReporting = features?.PdfReporting,
+                        ExternalApiAccess = features?.ExternalApiAccess,
+                        AdvancedFeatures = features?.AdvancedFeatures,
+                        ExportType = features?.ExportType
+                    };
+
+                    tenantInfo.CurrentPackage = features?.GetCurrentPackage();
+                    
+                    _tenants.Add(tenantInfo);
+                }
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+        }
+        finally
+        {
+            _isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task LoadTenantFeatures(TenantFeatureDto tenant)
+    {
+        try
+        {
+            var features = await FeatureService.GetAllTenantFeaturesAsync(tenant.TenantId);
+            
+            tenant.MaxUsers = features.MaxUsers;
+            tenant.MaxProducts = features.MaxProducts;
+            tenant.PdfReporting = features.PdfReporting;
+            tenant.ExternalApiAccess = features.ExternalApiAccess;
+            tenant.AdvancedFeatures = features.AdvancedFeatures;
+            tenant.ExportType = features.ExportType;
+            tenant.CurrentPackage = features.GetCurrentPackage();
+        }
+        catch (Exception ex)
+        {
+        }
+    }
+
+    private async Task SetBasicPackage(TenantFeatureDto tenant)
+    {
+        try
+        {
+            tenant.IsLoading = true;
+            tenant.LoadingAction = "basic";
+            StateHasChanged();
+
+            await FeatureService.ConfigureBasicTenantPackageAsync(tenant.TenantId);
+            await LoadTenantFeatures(tenant);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            tenant.IsLoading = false;
+            tenant.LoadingAction = string.Empty;
+            StateHasChanged();
+        }
+
+    }
+
+    private async Task SetPremiumPackage(TenantFeatureDto tenant)
+    {
+        try
+        {
+            tenant.IsLoading = true;
+            tenant.LoadingAction = "premium";
+            StateHasChanged();
+
+            await FeatureService.ConfigurePremiumTenantPackageAsync(tenant.TenantId);
+            await LoadTenantFeatures(tenant);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            tenant.IsLoading = false;
+            tenant.LoadingAction = string.Empty;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ResetPackage(TenantFeatureDto tenant)
+    {
+        try
+        {
+            tenant.IsLoading = true;
+            tenant.LoadingAction = "reset";
+            StateHasChanged();
+
+            await FeatureService.RemoveTenantFeaturesAsync(tenant.TenantId);
+            await LoadTenantFeatures(tenant);
+        }
+        catch (Exception ex)
+        {
+            await HandleErrorAsync(ex);
+        }
+        finally
+        {
+            tenant.IsLoading = false;
+            tenant.LoadingAction = string.Empty;
+            StateHasChanged();
+        }
+
+    }
+
+    private async Task RefreshData()
+    {
+        await LoadTenants();
+    }
+
+    private async Task OnSearchChanged(ChangeEventArgs e)
+    {
+        _searchTerm = e.Value?.ToString() ?? string.Empty;
+        StateHasChanged();
+    }
+
+   
+    private string GetPackageBadgeClass(string? package)
+    {
+        return package switch
+        {
+            "Basic" => "bg-success",
+            "Premium" => "bg-primary",
+            "Custom" => "bg-info",
+            _ => "bg-secondary"
+        };
+    }
+}
+
+<style>
+    .tenant-packages-modern-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        gap: 20px;
+        padding: 20px;
+    }
+
+    .tenant-packages-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 20px 0;
+        border-bottom: 3px solid #e9ecef;
+    }
+
+    .tenant-packages-title {
+        display: flex;
+        align-items: center;
+        font-size: 1.4rem;
+        font-weight: 700;
+        color: #495057;
+    }
+
+    .tenant-packages-title .badge {
+        font-size: 0.8rem;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    .refresh-btn {
+        background: linear-gradient(135deg, #17a2b8, #138496) !important;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 16px;
+        color: white;
+        font-weight: 600;
+        box-shadow: 0 3px 12px rgba(23, 162, 184, 0.3);
+        transition: all 0.3s ease;
+    }
+
+    .refresh-btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 18px rgba(23, 162, 184, 0.4);
+        background: linear-gradient(135deg, #138496, #117a8b) !important;
+    }
+
+    .filters-container {
+        padding: 20px;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        border: 2px solid #dee2e6;
+    }
+
+    .search-container {
+        position: relative;
+    }
+
+    .search-input {
+        border-radius: 10px !important;
+        border: 2px solid #dee2e6 !important;
+        padding: 12px 45px 12px 15px !important;
+        font-size: 1rem !important;
+        width: 100% !important;
+        background: white !important;
+        transition: all 0.3s ease !important;
+    }
+
+    .search-input:focus {
+        border-color: #2B5A72 !important;
+        box-shadow: 0 0 0 0.2rem rgba(43, 90, 114, 0.25) !important;
+        transform: translateY(-1px);
+    }
+
+    .search-icon {
+        position: absolute;
+        right: 15px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #6c757d;
+        font-size: 1.1rem;
+    }
+
+    .filter-select {
+        border-radius: 10px !important;
+        border: 2px solid #dee2e6 !important;
+        padding: 12px 15px !important;
+        font-size: 1rem !important;
+        width: 100% !important;
+        background: white !important;
+        transition: all 0.3s ease !important;
+    }
+
+    .filter-select:focus {
+        border-color: #2B5A72 !important;
+        box-shadow: 0 0 0 0.2rem rgba(43, 90, 114, 0.25) !important;
+        transform: translateY(-1px);
+    }
+
+    .loading-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 60px 20px;
+        background: white;
+        border-radius: 15px;
+        border: 3px solid #e9ecef;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+    }
+
+    .loading-spinner {
+        text-align: center;
+        color: #6c757d;
+    }
+
+    .loading-spinner p {
+        margin-top: 15px;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .tenant-table-container {
+        flex: 1;
+        overflow: auto;
+        border-radius: 15px;
+        border: 3px solid #e9ecef;
+        background: white;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+        max-height: 600px;
+        min-height: 300px;
+    }
+
+    .tenant-table {
+        width: 100%;
+        min-width: 1200px;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+    }
+
+    .tenant-table thead th {
+        background: linear-gradient(135deg, #2B5A72, #3c6d87);
+        border: none;
+        padding: 18px 15px;
+        font-weight: 700;
+        color: white;
+        text-transform: uppercase;
+        font-size: 0.85rem;
+        letter-spacing: 0.8px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        white-space: nowrap;
+        text-align: left;
+    }
+
+    .tenant-table thead th:first-child {
+        border-top-left-radius: 15px;
+    }
+
+    .tenant-table thead th:last-child {
+        border-top-right-radius: 15px;
+    }
+
+    .tenant-table tbody td {
+        padding: 15px;
+        border-bottom: 1px solid #f1f3f4;
+        vertical-align: middle;
+    }
+
+    .tenant-row {
+        transition: all 0.3s ease;
+        cursor: pointer;
+    }
+
+    .tenant-row:hover {
+        background: linear-gradient(135deg, rgba(43, 90, 114, 0.08), rgba(60, 109, 135, 0.08));
+        transform: translateY(-1px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .tenant-row.loading {
+        opacity: 0.7;
+        pointer-events: none;
+    }
+
+    .tenant-info strong {
+        font-weight: 600;
+        color: #2B5A72;
+        font-size: 1.05rem;
+    }
+
+    .feature-value {
+        font-weight: 600;
+        color: #495057;
+        font-size: 0.95rem;
+    }
+
+    .feature-icon {
+        font-size: 1.2rem;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .package-btn {
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        font-size: 0.8rem !important;
+        padding: 6px 12px !important;
+        transition: all 0.3s ease !important;
+        border: none !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+    }
+
+    .basic-btn {
+        background: linear-gradient(135deg, #28a745, #20c997) !important;
+        color: white !important;
+    }
+
+    .basic-btn:hover {
+        transform: translateY(-2px) scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4) !important;
+    }
+
+    .premium-btn {
+        background: linear-gradient(135deg, #2B5A72, #3c6d87) !important;
+        color: white !important;
+    }
+
+    .premium-btn:hover {
+        transform: translateY(-2px) scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(43, 90, 114, 0.4) !important;
+    }
+
+    .reset-btn {
+        background: linear-gradient(135deg, #ffc107, #e0a800) !important;
+        color: #212529 !important;
+    }
+
+    .reset-btn:hover {
+        transform: translateY(-2px) scale(1.05) !important;
+        box-shadow: 0 4px 15px rgba(255, 193, 7, 0.4) !important;
+    }
+
+    .empty-state-cell {
+        text-align: center;
+        padding: 60px 20px;
+    }
+
+    .empty-tenants-state {
+        color: #6c757d;
+    }
+
+    .empty-tenants-state i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+        display: block;
+        color: #2B5A72;
+    }
+
+    .empty-tenants-state p {
+        margin: 15px 0 8px 0;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+
+    .tenant-footer {
+        padding: 20px;
+        border-top: 3px solid #e9ecef;
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 12px;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .tenant-stats {
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .stat-item {
+        display: flex;
+        align-items: center;
+        font-size: 1rem;
+        color: #495057;
+        font-weight: 500;
+        padding: 8px 16px;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+    }
+
+    .stat-item:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    }
+
+    /* Scrollbar personalizzata */
+    .tenant-table-container::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+
+    .tenant-table-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 5px;
+    }
+
+    .tenant-table-container::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #2B5A72, #3c6d87);
+        border-radius: 5px;
+    }
+
+    .tenant-table-container::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #3c6d87, #2B5A72);
+    }
+
+    /* Responsive design */
+    @@media (max-width: 768px) {
+        .tenant-packages-modern-container {
+            padding: 10px;
+        }
+        
+        .tenant-table {
+            min-width: 900px;
+        }
+        
+        .tenant-packages-header {
+            flex-direction: column;
+            gap: 15px;
+            align-items: stretch;
+        }
+        
+        .tenant-stats {
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .action-buttons {
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .package-btn {
+            width: 100% !important;
+        }
+    }
+
+    /* Animazioni */
+    @@keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .tenant-row {
+        animation: fadeIn 0.3s ease-out;
+    }
+
+    /* Badge personalizzati */
+    .badge {
+        font-weight: 600;
+        font-size: 0.75rem;
+        padding: 6px 12px;
+        border-radius: 8px;
+        letter-spacing: 0.5px;
+    }
+
+    .bg-success {
+        background: linear-gradient(135deg, #28a745, #20c997) !important;
+    }
+
+    .bg-primary {
+        background: linear-gradient(135deg, #2B5A72, #3c6d87) !important;
+    }
+
+    .bg-info {
+        background: linear-gradient(135deg, #17a2b8, #138496) !important;
+    }
+
+    .bg-secondary {
+        background: linear-gradient(135deg, #6c757d, #5a6268) !important;
+    }
+
+    /* Effetti di loading aggiuntivi */
+    .loading .package-btn {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+        .loading .package-btn:hover {
+            transform: none !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+        }
+
+    /* Miglioramenti per l'accessibilità */
+    .tenant-row:focus-within {
+        outline: 2px solid #2B5A72;
+        outline-offset: 2px;
+    }
+
+    .package-btn:focus {
+        outline: 2px solid #2B5A72;
+        outline-offset: 2px;
+    }
+
+    /* Stati hover migliorati */
+    .tenant-table tbody tr:nth-child(even) {
+        background-color: rgba(248, 249, 250, 0.5);
+    }
+
+        .tenant-table tbody tr:nth-child(even):hover {
+            background: linear-gradient(135deg, rgba(43, 90, 114, 0.08), rgba(60, 109, 135, 0.08));
+        }
+
+    /* Indicatori di stato migliorati */
+    .feature-icon.fa-check {
+        animation: pulse-success 2s infinite;
+    }
+
+    .feature-icon.fa-times {
+        animation: pulse-danger 2s infinite;
+    }
+
+@@keyframes pulse-success {
+        0%
+
+    {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
+
+    }
+
+@@keyframes pulse-danger {
+        0%
+
+    {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
+
+    }
+
+    /* Miglioramenti per le statistiche */
+    .stat-item strong {
+        color: #2B5A72;
+        font-size: 1.1em;
+    }
+
+    /* Stati di errore */
+    .tenant-row.error {
+        background-color: rgba(220, 53, 69, 0.1);
+        border-left: 4px solid #dc3545;
+    }
+
+    .tenant-row.success {
+        background-color: rgba(40, 167, 69, 0.1);
+        border-left: 4px solid #28a745;
+    }
+
+    /* Transizioni fluide per il caricamento */
+    .loading-container {
+        animation: fadeIn 0.5s ease-in;
+    }
+
+    .tenant-table-container {
+        animation: slideUp 0.6s ease-out;
+    }
+
+@@keyframes slideUp {
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    .package-btn[title]:hover::after {
+        content: attr(title);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        white-space: nowrap;
+        z-index: 1000;
+        margin-bottom: 5px;
+    }
+
+    /* Print styles */
+@@media print {
+        .header-actions, .action-buttons, .filters-container
+
+    {
+        display: none !important;
+    }
+
+    .tenant-table-container {
+        max-height: none !important;
+        overflow: visible !important;
+        box-shadow: none !important;
+        border: 1px solid #000 !important;
+    }
+
+    .tenant-table {
+        font-size: 0.8rem;
+    }
+
+    .tenant-packages-modern-container {
+        padding: 0;
+    }
+}
+
+</style>

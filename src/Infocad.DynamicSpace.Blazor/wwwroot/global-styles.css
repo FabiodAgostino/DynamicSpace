@@ -1,0 +1,41 @@
+/* Your Global Styles */
+
+:root .lpx-brand-logo {
+    --lpx-logo: url(/images/logo/infocad.png);
+    --lpx-logo-icon: url('/images/logo/thumb-infocad.png');
+    margin-left: 6px;
+    /* --lpx-logo: url('/images/logo/leptonxlite/logo-light.png');
+    --lpx-logo-icon: url('/images/logo/leptonxlite/logo-light-thumbnail.png');*/
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+    .lpx-sidebar-container:not(:hover) .lpx-logo-container {
+        width: 75px !important;
+        background: #2B5A72 !important;
+    }
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+    .lpx-sidebar-container {
+        min-width: 80px !important;
+        background: #2B5A72 !important;
+    }
+}
+
+.lpx-nav-menu .lpx-menu-item-link.selected .lpx-menu-item-icon {
+    /* color: var(--lpx-brand); */
+    opacity: 1;
+    color: rgb(256, 108, 4) !important;
+}
+
+.lpx-nav-menu .lpx-menu-item-link:hover .lpx-menu-item-icon {
+    color: rgb(256, 108, 4) !important;
+}
+
+.lpx-nav-menu .lpx-menu-item-link.active-menu-item .lpx-menu-item-icon {
+    color: rgb(256, 108, 4) !important;
+}
+
+    .lpx-nav-menu .lpx-menu-item-link.active-menu-item .lpx-menu-item-icon .lpx-icon {
+        color: rgb(256, 108, 4) !important;
+    }

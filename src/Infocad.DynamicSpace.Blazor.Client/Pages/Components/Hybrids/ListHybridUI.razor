@@ -1,0 +1,504 @@
+﻿@using System.Reflection
+@using Infocad.DynamicSpace
+@using Infocad.DynamicSpace.Blazor.Client.Pages.Components.Hybrids
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicFormats
+@using Microsoft.Extensions.DependencyInjection
+@using System.Text.Json
+@using Volo.Abp.Application.Services
+@using System.Dynamic
+@using System.Linq
+@inject IMessageService MessageService
+@inherits DynamicSpaceComponentBase
+
+@if (Items != null && Items.Any())
+{
+    <div class="modern-card">
+        <div class="modern-card-header">
+            <Row Class="justify-content-between align-items-center">
+                <Column ColumnSize="ColumnSize.IsAuto">
+                    <h2 class="page-title">
+                        <i class="fas fa-cubes"></i>
+                        @BaseName
+                    </h2>
+                </Column>
+                <Column ColumnSize="ColumnSize.IsAuto">
+                    <Button Color="Color.Light" Class="new-btn" Clicked="OpenCreateModal">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        @L["NewEntity"]
+                    </Button>
+                </Column>
+            </Row>
+        </div>
+        <div class="modern-card-body">
+            <div class="table-responsive">
+                <DataGrid TItem="ExpandoObject"
+                          Data="@ConvertToExpandoObjects(Items)"
+                          TotalItems="Items.Count()"
+                          ShowPager="true"
+                          @ref="_grid"
+                          Class="modern-datagrid">
+                    <DataGridColumns>
+                        <DataGridColumn TItem="ExpandoObject" Caption="@L["Actions"]" Width="120px" TextAlignment="TextAlignment.Center">
+                            <DisplayTemplate>
+                                <Dropdown Direction="Direction.End">
+                                    <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="actions-btn">
+                                        <i class="fas fa-ellipsis-v"></i>
+                                    </DropdownToggle>
+                                    <DropdownMenu Class="actions-dropdown">
+                                        <DropdownItem Clicked="@(async () => await OpenEditModal(context))" Class="dropdown-item-custom">
+                                            <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                        </DropdownItem>
+                                        <DropdownDivider />
+                                        <DropdownItem Clicked="@(async () => await ConfirmDelete(context))" Class="text-danger dropdown-item-custom">
+                                            <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                        </DropdownItem>
+                                    </DropdownMenu>
+                                </Dropdown>
+                            </DisplayTemplate>
+                        </DataGridColumn>
+
+                        @if (DtoType != null)
+                        {
+                            @foreach (var property in DtoType.GetProperties()
+                                                .Where(p => !p.Name.Equals("ExtraProperties") && !p.Name.Equals("DynamicEntityId") && !p.Name.Equals("Id")))
+                            {
+                                <DataGridColumn TItem="ExpandoObject" Field="@property.Name" Caption="@property.Name">
+                                    <DisplayTemplate>
+                                        @{
+                                            var dict = (IDictionary<string, object>)context;
+                                            dict.TryGetValue(property.Name, out var value);
+                                        }
+                                        <div class="property-display">
+                                            @if (value != null)
+                                            {
+                                                <strong>@value</strong>
+                                            }
+                                            else
+                                            {
+                                                <span class="text-muted font-italic">Non specificato</span>
+                                            }
+                                        </div>
+                                    </DisplayTemplate>
+                                </DataGridColumn>
+                            }
+                        }
+
+                        @if (Entity != null && Attributes != null)
+                        {
+                            @foreach (var entityAttribute in Entity.Attributes.OrderBy(a => a.Order))
+                            {
+                                var attributes = Attributes.FirstOrDefault(f => f.Id == entityAttribute.DynamicAttributeId);
+                                if (attributes != null)
+                                {
+                                    <DataGridColumn TItem="ExpandoObject" Field="@attributes.Name" Caption="@entityAttribute.Label">
+                                        <DisplayTemplate>
+                                            @{
+                                                var dict = (IDictionary<string, object>)context;
+                                                string value = string.Empty;
+                                                dict.TryGetValue(attributes.Name, out var entry);
+
+                                                var format = Formats?.FirstOrDefault(f => f.Id == entityAttribute.DynamicFormatId);
+                                                if (format != null && !string.IsNullOrEmpty(format.FormatPattern))
+                                                {
+                                                    value = format.ApplyFormat(entry);
+                                                }
+                                                else
+                                                {
+                                                    value = entry?.ToString() ?? string.Empty;
+                                                }
+
+                                            }
+                                            <div class="dynamic-property-display">
+                                                @if (!string.IsNullOrWhiteSpace(value))
+                                                {
+                                                    @if(attributes.Type != DynamicAttributeType.Navigation)
+                                                    {
+                                                        @value
+                                                    }
+                                                    else
+                                                    {
+                                                        var expandoObj = JsonSerializer.Deserialize<ExpandoObject>(value, new JsonSerializerOptions
+                                                        {
+                                                            PropertyNameCaseInsensitive = true
+                                                        });
+
+                                                        var exp = (IDictionary<string, object>)expandoObj;
+                                                        if (exp.TryGetValue("Value", out var v))
+                                                        {
+                                                            <a @onclick="@(() => _navigationModal.ShowModal(expandoObj))" class="clickable-link">@v</a>
+                                                        }
+                                                    }
+                                                }
+                                            </div>
+                                        </DisplayTemplate>
+                                    </DataGridColumn>
+                                }
+                            }
+                        }
+                    </DataGridColumns>
+                </DataGrid>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="empty-state-modern">
+        <div class="empty-icon">
+            <i class="fas fa-database"></i>
+        </div>
+        <h4>Nessuna entità dinamica trovata</h4>
+        <p class="text-muted">Non ci sono ancora entità configurate nel sistema. Inizia creandone una nuova.</p>
+        <Button Color="Color.Primary" Class="new-btn" Clicked="OpenCreateModal">
+            <i class="fas fa-plus-circle me-2"></i>
+            @L["NewEntity"]
+        </Button>
+    </div>
+}
+
+<NavigationDetailModal @ref="_navigationModal" />
+
+
+<style>
+    .modern-card {
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border: none;
+        background-color: white;
+        margin-bottom: 1.5rem;
+    }
+
+    .modern-card-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 20px 20px 0 0;
+        padding: 20px 25px;
+        border: none;
+    }
+
+    .modern-card-body {
+        padding: 25px;
+        background: #f8f9fb;
+        border-radius: 0 0 20px 20px;
+        overflow: visible;
+    }
+
+    .page-title {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        color: white;
+    }
+
+    .new-btn {
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(74, 107, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 189, 0.4);
+        }
+
+    .actions-btn {
+        padding: 8px 12px !important;
+        min-width: 40px;
+        border-radius: 20px !important;
+    }
+
+    .actions-wrapper {
+        position: relative;
+        display: flex;
+        justify-content: center;
+        z-index: 1000;
+    }
+
+    .actions-dropdown {
+        min-width: 140px !important;
+        border-radius: 12px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+        border: none !important;
+        z-index: 1050 !important;
+    }
+
+    .dropdown-item-custom {
+        padding: 10px 15px !important;
+        transition: all 0.2s ease;
+        font-size: 0.9rem;
+    }
+
+        .dropdown-item-custom:hover {
+            background-color: rgba(74, 107, 189, 0.1) !important;
+            transform: translateX(2px);
+        }
+
+    .table-responsive {
+        overflow-x: unset;
+    }
+
+    .modern-datagrid {
+        background: white;
+        border-radius: 16px;
+        overflow: visible;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        position: relative;
+    }
+
+        .modern-datagrid .table {
+            margin: 0;
+            border-collapse: separate;
+            border-spacing: 0;
+            overflow: visible;
+        }
+
+            .modern-datagrid .table thead th {
+                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                border: none;
+                padding: 15px 20px;
+                font-weight: 600;
+                color: #495057;
+                text-transform: uppercase;
+                font-size: 0.8rem;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+                position: relative;
+            }
+
+                .modern-datagrid .table thead th:first-child {
+                    border-top-left-radius: 16px;
+                }
+
+                .modern-datagrid .table thead th:last-child {
+                    border-top-right-radius: 16px;
+                }
+
+            .modern-datagrid .table tbody td {
+                padding: 15px 20px;
+                border-bottom: 1px solid #f1f3f4;
+                vertical-align: middle;
+                position: relative;
+                overflow: visible;
+            }
+
+            .modern-datagrid .table tbody tr:hover {
+                background-color: rgba(74, 107, 189, 0.05);
+                transition: all 0.2s ease;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:first-child {
+                border-bottom-left-radius: 16px;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:last-child {
+                border-bottom-right-radius: 16px;
+            }
+
+    .property-display {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .property-icon {
+        color: #2B5A72;
+        font-size: 0.9rem;
+    }
+
+    .dynamic-property-display {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .type-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+        .type-badge.text {
+            background: rgba(33, 136, 255, 0.1);
+            color: #2188ff;
+        }
+
+        .type-badge.number {
+            background: rgba(255, 140, 0, 0.1);
+            color: #ff8c00;
+        }
+
+        .type-badge.float {
+            background: rgba(255, 69, 0, 0.1);
+            color: #ff4500;
+        }
+
+        .type-badge.boolean {
+            background: rgba(34, 139, 34, 0.1);
+            color: #228b22;
+        }
+
+        .type-badge.datetime {
+            background: rgba(138, 43, 226, 0.1);
+            color: #8a2be2;
+        }
+
+    .type-icon {
+        font-size: 0.9rem;
+    }
+
+    .empty-state-modern {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 20px;
+        padding: 60px 30px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        margin: 2rem 0;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+    }
+
+    .empty-state-modern h4 {
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .modern-card {
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    @@media (max-width: 768px) {
+        .modern-card-body {
+            padding: 15px;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .new-btn {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .empty-state-modern {
+            padding: 40px 20px;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+        }
+
+        .actions-dropdown {
+            position: fixed !important;
+            top: auto !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            bottom: 20px !important;
+        }
+    }
+
+    .dropdown-menu.show {
+        z-index: 1055 !important;
+    }
+
+    td:has(.dropdown.show) {
+        z-index: 1000;
+        position: relative;
+    }
+
+    /* Stili per lo stato vuoto (empty state) */
+
+    .empty-state-modern {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 20px;
+        padding: 60px 30px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        margin: 2rem 0;
+        animation: fadeInUp 0.6s ease-out;
+    }
+
+    .empty-icon {
+        font-size: 4rem;
+        color: #6c757d;
+        margin-bottom: 1.5rem;
+        opacity: 0.7;
+    }
+
+    .empty-state-modern h4 {
+        color: #495057;
+        margin-bottom: 0.5rem;
+        font-weight: 600;
+    }
+
+    .empty-state-modern p {
+        font-size: 1.1rem;
+        margin-bottom: 2rem;
+    }
+
+    /* Stili del pulsante utilizzato nell'empty state */
+    .new-btn {
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(74, 107, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 189, 0.4);
+        }
+
+    @@media (max-width: 768px) {
+        .empty-state-modern
+
+    {
+        padding: 40px 20px;
+    }
+
+    .empty-icon {
+        font-size: 3rem;
+    }
+
+    .new-btn {
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+
+    }
+</style>

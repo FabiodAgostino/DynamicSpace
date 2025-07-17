@@ -1,0 +1,275 @@
+﻿@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicEntityAttributes
+@using Infocad.DynamicSpace.DynamicRules
+@using Infocad.DynamicSpace.HybridRooms
+@using System.Text.Json
+@using Volo.Abp.Data
+@using Blazorise
+@inherits DynamicSpaceComponentBase
+
+<style>
+    .custom-card-edit {
+        border-radius: 25px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        background-color: white;
+    }
+    .card-header-custom {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 15px 20px;
+        border: none;
+    }
+    .card-body-custom {
+        padding: 20px;
+    }
+    .property-label {
+        font-weight: 500;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+    .property-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #343a40;
+        word-break: break-word;
+    }
+    .property-row {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+        .property-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+    .new-btn {
+        border-radius: 20px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+    .dropdown-custom .btn {
+        border-radius: 20px;
+        box-shadow: none;
+    }
+    .empty-state {
+        background-color: #f8f9fa;
+        border-radius: 16px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+    .section-divider {
+        margin: 2rem 0;
+        border-top: 2px solid #e9ecef;
+    }
+    .edit-header-badge {
+        background-color: rgba(255,255,255,0.2);
+        padding: 4px 12px;
+        border-radius: 15px;
+        font-size: 0.8rem;
+        margin-left: 10px;
+    }
+</style>
+
+<div class="custom-card-edit">
+    <div class="card-header-custom">
+        <h4 class="mb-0">
+            <i class="fas fa-edit me-2"></i>
+            Modifica Vano
+            <span class="edit-header-badge">ID: @(HybridRoom?.Id.ToString("N")[..8])</span>
+        </h4>
+    </div>
+    
+    <div class="card-body-custom">
+            @if (_editableRoom != null && _editableRoom.Id != new Guid())
+            {
+                <!-- Proprietà Base della Stanza -->
+                <div class="mb-4">
+                    <h5 class="property-label mb-3">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Informazioni Base
+                    </h5>
+                    
+                    <div class="row">
+                        <!-- Nome -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label property-label">Nome Stanza *</label>
+                                <TextEdit Text="@_editableRoom.Name"
+                                          TextChanged="@OnNameChanged"
+                                          Placeholder="Inserisci il nome della stanza"
+                                          Style="border-radius: 10px;">
+                                </TextEdit>
+                        </div>
+
+                        <!-- Capacità -->
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label property-label">Capacità *</label>
+                                <NumericEdit TValue="int"
+                                             Value="@_editableRoom.Capacity"
+                                             ValueChanged="@OnCapacityChanged"
+                                             Min="1"
+                                             Placeholder="Es. 20"
+                                             Style="border-radius: 10px;">
+                                </NumericEdit>
+                        </div>
+
+                        <!-- Descrizione -->
+                        <div class="col-12 mb-3">
+                            <label class="form-label property-label">Descrizione</label>
+                            <MemoEdit Text="@_editableRoom.Description"
+                                      TextChanged="@OnDescriptionChanged"
+                                      Rows="3"
+                                      Placeholder="Descrizione della stanza (opzionale)"
+                                      Style="border-radius: 10px;" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Proprietà Dinamiche -->
+                @if (Entity != null && Entity.Attributes.Any() && DynamicAttributes != null && DynamicRules != null)
+                {
+                    <Validations @ref="_validations" Mode="ValidationMode.Auto" StatusChanged="@OnStatusChanged">
+                        <div class="section-divider"></div>
+                    
+                        <div class="mb-4">
+                            <h5 class="property-label mb-3">
+                                <i class="fas fa-sliders-h me-2"></i>
+                                Proprietà Dinamiche - @Entity.Name
+                            </h5>
+                        
+                            @if (!string.IsNullOrEmpty(Entity.Description))
+                            {
+                                <div class="alert alert-info" style="border-radius: 10px;">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    @Entity.Description
+                                </div>
+                            }
+
+                            <div class="row">
+                                @foreach (var entityAttribute in Entity.Attributes.OrderBy(a => a.Order))
+                                {
+                                    var attributes = DynamicAttributes.FirstOrDefault(x => x.Id == entityAttribute.DynamicAttributeId);
+                                    if (attributes != null)
+                                    {
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label property-label">
+                                                @entityAttribute.Label
+                                            </label>
+                                        
+                                             @{
+                                                var dynamicRule = DynamicRules.FirstOrDefault(x => x.Id == entityAttribute.DynamicRuleId);
+                                                var pattern = dynamicRule?.Rule ?? ".*";
+                                                string message = !string.IsNullOrEmpty(dynamicRule?.Description) ? dynamicRule.Description : "Valore non valido";
+                                            }
+                                             <label class="form-label">@attributes.Name</label>
+
+                                            @switch (attributes.Type)
+                                                {
+                                                    case DynamicAttributeType.Navigation:
+                                                    var navigationValue = JsonSerializer.Deserialize<NavSettingDto>(attributes.NavigationSettings);
+                                                    <Validation Validator="@ValidateNavigation">
+                                                        <BaseNavDynamicEntity NavAttribute="navigationValue" OnSelectChangedCallBack="@((string? value) => SetValue(attributes.Name, value))"></BaseNavDynamicEntity>
+                                                    </Validation>
+
+                                                break;
+
+                                                    case DynamicAttributeType.Text:
+                                                        <Validation UsePattern>
+                                                            <TextEdit Text="@(GetValue<string>(attributes.Name))"
+                                                                      TextChanged="@((string value) => SetValue(attributes.Name, value))"
+                                                                      Pattern="@pattern"
+                                                                      Style="border-radius: 10px;"
+                                                                      Placeholder="@($"Inserisci {entityAttribute.Label.ToLower()}")">
+                                                                <Feedback>
+                                                                    <ValidationError>@message</ValidationError>
+                                                                </Feedback>
+                                                            </TextEdit>
+                                                        </Validation>
+                                                        break;
+
+                                                    case DynamicAttributeType.Number:
+                                                        <Validation UsePattern>
+                                                            <NumericEdit TValue="int?"
+                                                                         Value="@(GetValue<int?>(attributes.Name))"
+                                                                         ValueChanged="@((int? value) => SetValue(attributes.Name, value))"
+                                                                         Pattern="@pattern"
+                                                                         Style="border-radius: 10px;"
+                                                                         Placeholder="@($"Inserisci {entityAttribute.Label.ToLower()}")">
+                                                                <Feedback>
+                                                                    <ValidationError>@message</ValidationError>
+                                                                </Feedback>
+                                                            </NumericEdit>
+                                                        </Validation>
+                                                        break;
+
+                                                    case DynamicAttributeType.Float:
+                                                        <Validation UsePattern>
+                                                            <NumericEdit TValue="float?"
+                                                                         Value="@(GetValue<float?>(attributes.Name))"
+                                                                         ValueChanged="@((float? value) => SetValue(attributes.Name, value))"
+                                                                         Pattern="@pattern"
+                                                                         Style="border-radius: 10px;"
+                                                                         Placeholder="@($"Inserisci {entityAttribute.Label.ToLower()}")">
+                                                                <Feedback>
+                                                                    <ValidationError>@message</ValidationError>
+                                                                </Feedback>
+                                                            </NumericEdit>
+                                                        </Validation>
+                                                        break;
+
+                                                    case DynamicAttributeType.Boolean:
+                                                        <div class="form-check" style="margin-top: 8px;">
+                                                            <Check Checked="@(GetValue<bool?>(attributes.Name) ?? false)"
+                                                                   CheckedChanged="@((bool value) => SetValue(attributes.Name, value))"
+                                                                   Style="transform: scale(1.2);" />
+                                                        </div>
+                                                        break;
+
+                                                    case DynamicAttributeType.DateTime:
+                                                        <Validation UsePattern>
+                                                            <DateEdit Date="@(GetValue<DateTime?>(attributes.Name))"
+                                                                      DateChanged="@((DateTime? value) => SetValue(attributes.Name, value))"
+                                                                      Pattern="@pattern"
+                                                                      Style="border-radius: 10px;">
+                                                                <Feedback>
+                                                                    <ValidationError>@message</ValidationError>
+                                                                </Feedback>
+                                                            </DateEdit>
+                                                        </Validation>
+                                                        break;
+                                                }
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </Validations>
+
+                }
+            }
+    </div>
+    
+    <!-- Footer con pulsanti -->
+    <div class="card-footer bg-light" style="border-radius: 0 0 16px 16px; padding: 15px 20px;">
+        <div class="d-flex justify-content-end gap-2">
+            <Button Color="Color.Secondary" 
+                    Clicked="CloseModal" 
+                    Class="new-btn">
+                <i class="fas fa-times me-2"></i>
+                @L["Cancel"]
+            </Button>
+            <Button Color="Color.Primary" 
+                    Clicked="SaveChanges" 
+                    Disabled="_disabled"
+                    Class="new-btn">
+                <i class="fas fa-save me-2"></i>
+                @L["Save"]
+            </Button>
+        </div>
+    </div>
+</div>

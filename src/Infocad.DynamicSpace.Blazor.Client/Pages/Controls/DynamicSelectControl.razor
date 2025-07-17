@@ -1,0 +1,181 @@
+﻿@using Microsoft.AspNetCore.Components
+@using System.Text.Json
+@using Blazorise
+
+@inherits ComponentBase
+
+
+<Field>
+    @if (!string.IsNullOrEmpty(Label))
+    {
+        <FieldLabel Class="@LabelCssClass">
+            @if (!string.IsNullOrEmpty(Icon))
+            {
+                <i class="@Icon me-2"></i>
+            }
+            @Label
+            @if (Required)
+            {
+                <span class="text-danger">*</span>
+            }
+        </FieldLabel>
+    }
+
+    <Select TValue="string" @bind-SelectedValue="@SelectedValue" Class="@CssClass" Disabled="@Disabled">
+        @if (!string.IsNullOrEmpty(Placeholder))
+        {
+            <SelectItem TValue="string" Value="String.Empty">@Placeholder</SelectItem>
+        }
+        
+        @if (Options != null)
+        {
+            @foreach (var option in Options)
+            {
+                <SelectItem TValue="string" Value="@option.Value">
+                    @option.Text
+                </SelectItem>
+            }
+        }
+    </Select>
+
+    @if (!string.IsNullOrEmpty(ValidationMessage))
+    {
+        <div class="invalid-feedback d-block">
+            @ValidationMessage
+        </div>
+    }
+
+    @if (!string.IsNullOrEmpty(HelpText))
+    {
+        <small class="form-text text-muted">@HelpText</small>
+    }
+</Field>
+
+@code {
+    [Parameter] public string? Value { get; set; }
+    [Parameter] public EventCallback<string?> ValueChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+    [Parameter] public string? Placeholder { get; set; }
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public string? CssClass { get; set; } = "form-control-modern";
+    [Parameter] public string? LabelCssClass { get; set; } = "form-label-modern";
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public string? HelpText { get; set; }
+    [Parameter] public string? ValidationMessage { get; set; }
+    [Parameter] public List<SelectOption>? Options { get; set; }
+    [Parameter] public string? OptionsJson { get; set; }
+    [Parameter] public Dictionary<string, object>? AdditionalAttributes { get; set; }
+
+    private string? _selectedValue;
+    
+    public string? SelectedValue
+    {
+        get => _selectedValue;
+        set
+        {
+            if (_selectedValue != value)
+            {
+                _selectedValue = value;
+                Value = value;
+                ValueChanged.InvokeAsync(value);
+                StateHasChanged();
+            }
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        _selectedValue = Value;
+        
+        if (!string.IsNullOrEmpty(OptionsJson) && Options == null)
+        {
+            try
+            {
+                Options = JsonSerializer.Deserialize<List<SelectOption>>(OptionsJson);
+            }
+            catch (JsonException ex)
+            {
+                Console.WriteLine($"Errore nella deserializzazione delle opzioni: {ex.Message}");
+                Options = new List<SelectOption>();
+            }
+        }
+
+        Options ??= new List<SelectOption>();
+
+        await base.OnInitializedAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_selectedValue != Value)
+        {
+            _selectedValue = Value;
+            StateHasChanged();
+        }
+        await base.OnParametersSetAsync();
+    }
+
+    public object? GetValue() => SelectedValue;
+    
+    public void SetValue(object? value)
+    {
+        SelectedValue = value?.ToString();
+    }
+    
+    public bool IsValid()
+    {
+        if (Required && string.IsNullOrEmpty(SelectedValue))
+        {
+            return false;
+        }
+        return true;
+    }
+    
+    public string GetValidationMessage()
+    {
+        if (!IsValid())
+        {
+            return Required && string.IsNullOrEmpty(SelectedValue) 
+                ? "Questo campo è obbligatorio" 
+                : ValidationMessage ?? string.Empty;
+        }
+        return string.Empty;
+    }
+
+    public void AddOption(string value, string text)
+    {
+        Options ??= new List<SelectOption>();
+        Options.Add(new SelectOption { Value = value, Text = text });
+        StateHasChanged();
+    }
+
+    public void ClearOptions()
+    {
+        Options?.Clear();
+        StateHasChanged();
+    }
+
+    public void SetOptions(List<SelectOption> options)
+    {
+        Options = options;
+        StateHasChanged();
+    }
+
+
+    public class SelectOption
+    {
+        public string Value { get; set; } = string.Empty;
+        public string Text { get; set; } = string.Empty;
+        public bool Disabled { get; set; } = false;
+        public string? Group { get; set; }
+    }
+
+    public interface IDynamicControl
+    {
+        object? GetValue();
+        void SetValue(object? value);
+        bool IsValid();
+        string GetValidationMessage();
+    }
+}

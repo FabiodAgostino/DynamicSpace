@@ -1,0 +1,49 @@
+﻿@using System.Reflection
+@using System.Linq
+@using Infocad.DynamicSpace
+@using Infocad.DynamicSpace.HybridBuildings
+@using Infocad.DynamicSpace.HybridCompanies
+@using Blazorise
+@using Blazorise.Icons.FontAwesome
+@inherits DynamicSpaceComponentBase
+
+<Modal @ref="_modal">
+    <ModalContent Centered>
+        <ModalHeader>
+            <ModalTitle>@L["NewEntity"]</ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            <Row>
+                <Column>
+                    <Heading Size="HeadingSize.Is5" Margin="Margin.Is3.FromBottom">
+                        Scegli entità ibrida
+                    </Heading>
+                </Column>
+            </Row>
+            <Row>
+                @foreach (var hybridType in _hybridTypes)
+                {
+                    string hybridText = GetTypeDisplayName(hybridType);
+                    <Column >
+                        <Card Class="entity-card" @onclick="() => NavigateToEntityPage(hybridType)">
+                            <CardHeader Class="text-center bg-light">
+                                <CardTitle>@hybridText</CardTitle>
+                            </CardHeader>
+                            <CardBody>
+                                <CardText>
+                                </CardText>
+                            </CardBody>
+                        </Card>
+                    </Column>
+                }
+            </Row>
+        </ModalBody>
+        <ModalFooter>
+           
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+
+

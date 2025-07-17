@@ -1,0 +1,667 @@
+﻿@page "/dynamicentities"
+@using Infocad.DynamicSpace.Blazor.Client.Pages.Modals
+@using Infocad.DynamicSpace.DynamicControls
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicFormats
+@using Infocad.DynamicSpace.DynamicRules
+@using Infocad.DynamicSpace.DynamicTypes
+@using Infocad.DynamicSpace.Permissions
+@using Microsoft.AspNetCore.Authorization
+@using Infocad.DynamicSpace.DynamicEntityAttributes
+@using Volo.Abp.AspNetCore.Components.Web
+
+@attribute [Authorize(DynamicSpacePermissions.DynamicEntity.Default)]
+@inject IDynamicEntityService DynamicEntityService
+@inject IDynamicTypeService DynamicTypeService
+@inject IDynamicAttributeService DynamicAttributeService
+@inject IDynamicFormatService DynamicFormatService
+@inject IDynamicRuleService DynamicRuleService
+@inject IDynamicControlService DynamicControlService
+
+@inherits DynamicSpaceComponentBase
+
+<div class="modern-card">
+    <div class="modern-card-header">
+        <Row Class="justify-content-between align-items-center">
+            <Column ColumnSize="ColumnSize.IsAuto">
+                <h2 class="page-title">
+                    <i class="fas fa-cubes me-3"></i>
+                    @L["Dynamic Entities"]
+                </h2>
+            </Column>
+            <Column ColumnSize="ColumnSize.IsAuto">
+                @if (CanCreateDynamicEntity)
+                {
+                    <Button Color="Color.Light" Class="new-btn" Clicked="OpenCreateModal">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        @L["NewEntity"]
+                    </Button>
+                }
+            </Column>
+        </Row>
+    </div>
+    <div class="modern-card-body">
+        <DataGrid TItem="DynamicEntityDto"
+                  Data="@Entities"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  PageSize="PageSize"
+                  Class="modern-datagrid">
+            <DataGridColumns>
+                <DataGridColumn TItem="DynamicEntityDto"
+                                Field="@nameof(DynamicEntityDto.Id)"
+                                Caption="@L["Actions"]"
+                                Width="150px"
+                                Sortable="false">
+                    <DisplayTemplate>
+                        <Dropdown Direction="Direction.End">
+                            <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="new-btn">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </DropdownToggle>
+                            <DropdownMenu>
+                                @if (CanEditDynamicEntity)
+                                {
+                                    <DropdownItem Clicked="@(async () => await OpenEditModal(context))">
+                                        <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                    </DropdownItem>
+                                }
+                                @if (CanDeleteDynamicEntity)
+                                {
+                                    <DropdownDivider />
+                                    <DropdownItem Clicked="@(async () => await DeleteEntity(context))" Class="text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                    </DropdownItem>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </DisplayTemplate>
+                </DataGridColumn>
+                <DataGridColumn TItem="DynamicEntityDto"
+                                Field="@nameof(DynamicEntityDto.Name)"
+                                Caption="@L["Name"]" />
+                <DataGridColumn TItem="DynamicEntityDto"
+                                Field="@nameof(DynamicEntityDto.Description)"
+                                Caption="@L["Description"]" />
+            </DataGridColumns>
+        </DataGrid>
+    </div>
+</div>
+
+@if (CanCreateDynamicEntity)
+{
+    <Modal @ref="CreateModal" Closing="@OnModalClosing" Class="modal-modern">
+        <ModalContent Size="ModalSize.ExtraLarge">
+            <ModalHeader>
+                <h4 style="color:white">
+                    <i class="fas fa-plus-circle me-2" style="color:white"></i>
+                    @L["NewEntity"]
+                </h4>
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="CreateValidationsRef" Model="@NewEntity">
+                    <div class="entity-form-container">
+                        <!-- Sezione Dettagli Entità -->
+                        <div class="entity-details-section">
+                            <div class="section-title">
+                                <i class="fas fa-info-circle"></i>
+                                Dettagli Entità
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Name"]</Label>
+                                <TextEdit @bind-Text="NewEntity.Name"
+                                          Placeholder="@L["Insert name"]"
+                                          Class="form-control-modern" />
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Description"]</Label>
+                                <MemoEdit @bind-Text="NewEntity.Description"
+                                          Placeholder="@L["Insert description"]"
+                                          Rows="3"
+                                          Class="form-control-modern" />
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Dynamic Type"]</Label>
+                                <Validation Validator="ValidateTypeEntity">
+                                    <Select TValue="Guid" @bind-SelectedValue="NewEntity.DynamicTypeId" Class="select-modern">
+                                        <ChildContent>
+                                            <SelectItem Value="@((Guid?)null)">Nessun Tipo</SelectItem>
+                                            @foreach (var type in AvailableDynamicTypes)
+                                            {
+                                                <SelectItem Value="@type.Id">@type.Name</SelectItem>
+                                            }
+                                        </ChildContent>
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </Select>
+                                </Validation>
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Hybrid Entity"]</Label>
+                                <Select TValue="string"
+                                        SelectedValue="@_selectedHybridTypeString"
+                                        SelectedValueChanged="@((string value) => OnSelectedValueChanged(value, false))"
+                                        Class="select-modern">
+                                    @foreach (var type in _hybridTypes)
+                                    {
+                                        string hybridText = type != null ? type.Name : String.Empty;
+                                        <SelectItem Value="@hybridText" Disabled="@(type != null ? HybridEntitiesUsed.Contains(type.HybridTypeName) : false)">
+                                            @hybridText
+                                        </SelectItem>
+                                    }
+                                </Select>
+                            </div>
+                        </div>
+                        <!-- Sezione Attributi -->
+                        <div class="entity-attributes-section">
+                            <div class="section-title">
+                                <i class="fas fa-sliders-h"></i>
+                                Configurazione Attributi
+                            </div>
+
+                            <div class="attributes-container">
+                                <DynamicEntityAttributeGrid @bind-EntityAttributes="NewEntity.Attributes"
+                                                            AvailableAttributes="@AvailableAttributes"
+                                                            NameEntity="@NewEntity.Name"
+                                                            SelectedHybridEntity="@_selectedHybridType"
+                                                            AvailableRules="@AvailableDynamicRules"
+                                                            AvailableControls="@AvailableDynamicControls"
+                                                            AvailableFormats="@AvailableDynamicFormats" />
+                            </div>
+                        </div>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="() => CloseModal(false)" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>@L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Clicked="CreateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>@L["Save"]
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+}
+
+@if (CanEditDynamicEntity)
+{
+    <Modal @ref="EditModal" Closing="@OnModalClosing" Class="modal-modern">
+        <ModalContent Size="ModalSize.ExtraLarge">
+            <ModalHeader>
+                <h4>
+                    <i class="fas fa-edit me-2"></i>
+                    @L["EditEntity"]
+                </h4>
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="EditValidationsRef" Model="@EditingEntity">
+                    <div class="entity-form-container">
+                        <!-- Sezione Dettagli Entità -->
+                        <div class="entity-details-section">
+                            <div class="section-title">
+                                <i class="fas fa-info-circle"></i>
+                                Dettagli Entità
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Name"]</Label>
+                                <TextEdit @bind-Text="EditingEntity.Name"
+                                          Placeholder="@L["Insert name"]"
+                                          Class="form-control-modern" />
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Description"]</Label>
+                                <MemoEdit @bind-Text="EditingEntity.Description"
+                                          Placeholder="@L["Insert description"]"
+                                          Rows="3"
+                                          Class="form-control-modern" />
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Dynamic Type"]</Label>
+                                <Validation Validator="ValidateTypeEntity">
+                                    <Select @bind-SelectedValue="EditingEntity.DynamicTypeId" TValue="Guid" Class="select-modern">
+                                        <ChildContent>
+                                            <SelectItem Value="@((Guid?)null)">Nessun Tipo</SelectItem>
+                                            @foreach (var type in AvailableDynamicTypes)
+                                            {
+                                                <SelectItem Value="@type.Id">@type.Name</SelectItem>
+                                            }
+                                        </ChildContent>
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </Select>
+                                </Validation>
+                            </div>
+
+                            <div class="form-group-modern">
+                                <Label Class="form-label-modern">@L["Hybrid Entity"]</Label>
+                                <Select TValue="string"
+                                        SelectedValue="@_selectedHybridTypeString"
+                                        Disabled="@_disabledSelectHybridType"
+                                        SelectedValueChanged="@((string value) => OnSelectedValueChanged(value, true))"
+                                        Class="select-modern">
+                                    @foreach (var type in _hybridTypes)
+                                    {
+                                        string hybridText = type != null ? type.Name : String.Empty;
+                                        <SelectItem Value="@hybridText" Disabled="@(type != null ? HybridEntitiesUsed.Contains(type.HybridTypeName) : false)">
+                                            @hybridText
+                                        </SelectItem>
+                                    }
+                                </Select>
+                            </div>
+                        </div>
+
+                        <!-- Sezione Attributi -->
+                        <div class="entity-attributes-section">
+                            <div class="section-title">
+                                <i class="fas fa-sliders-h"></i>
+                                Configurazione Attributi
+                            </div>
+
+                            <div class="attributes-container">
+                                <DynamicEntityAttributeGrid @bind-EntityAttributes="EditingEntity.Attributes"
+                                                            AvailableAttributes="@AvailableAttributes"
+                                                            IsEdit="true"
+                                                            RemoveEntityAttribute="@(async (CreateDynamicEntityAttributeDto item) => await RemoveEntityAttributeAsync(item))"
+                                                            NameEntity="@EditingEntity.Name"
+                                                            AvailableControls="@AvailableDynamicControls"
+                                                            SelectedHybridEntity="@_selectedHybridType"
+                                                            AvailableRules="@AvailableDynamicRules"
+                                                            AvailableFormats="@AvailableDynamicFormats" />
+                            </div>
+                        </div>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="() => CloseModal(true)" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>@L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Clicked="UpdateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>@L["Save"]
+                </Button>
+            </ModalFooter>
+        </ModalContent>
+    </Modal>
+}
+
+<HybridEntityChoice @ref="_hybridEntityChoice" />
+
+<style>
+    .modern-card {
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border: none;
+        background-color: white;
+        margin-bottom: 1.5rem;
+    }
+
+    .modern-card-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 20px 20px 0 0;
+        padding: 20px 25px;
+        border: none;
+    }
+
+    .modern-card-body {
+        padding: 25px;
+    }
+
+    .page-title {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.5rem;
+    }
+
+    .new-btn {
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(74, 107, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 189, 0.4);
+        }
+
+    /* Stili per le modali moderne */
+    .modal-modern .modal-dialog {
+        max-width: 95vw;
+        width: 95vw;
+        margin: 20px auto;
+    }
+
+    .modal-modern .modal-content {
+        border-radius: 25px;
+        border: none;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+    }
+
+    .modal-modern .modal-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border: none;
+        padding: 20px 30px;
+        border-radius: 25px 25px 0 0;
+    }
+
+        .modal-modern .modal-header h4 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.3rem;
+        }
+
+    .modal-modern .modal-body {
+        padding: 30px;
+        max-height: 75vh;
+        overflow: hidden;
+        background: #f8f9fb;
+    }
+
+    .modal-modern .modal-footer {
+        border: none;
+        padding: 20px 30px;
+        background: white;
+        border-radius: 0 0 25px 25px;
+    }
+
+    /* Layout flessibile per le colonne */
+    .entity-form-container {
+        display: flex;
+        gap: 25px;
+        height: 100%;
+    }
+
+    .entity-details-section {
+        flex: 0 0 350px;
+        background: white;
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        height: fit-content;
+    }
+
+    .entity-attributes-section {
+        flex: 1;
+        background: white;
+        border-radius: 16px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        display: flex;
+        flex-direction: column;
+        min-height: 400px;
+        max-height: 60vh;
+    }
+
+    .section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #2B5A72;
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid #e9ecef;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .form-group-modern {
+        margin-bottom: 20px;
+    }
+
+    .form-label-modern {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-control-modern {
+        border-radius: 12px !important;
+        border: 2px solid #e9ecef !important;
+        padding: 12px 16px !important;
+        transition: all 0.3s ease !important;
+    }
+
+        .form-control-modern:focus {
+            border-color: #2B5A72 !important;
+            box-shadow: 0 0 0 0.2rem rgba(74, 107, 189, 0.15) !important;
+        }
+
+    /* Tabella attributi moderna */
+    .attributes-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .attributes-header {
+        display: flex;
+        justify-content: between;
+        align-items: center;
+        margin-bottom: 15px;
+        flex-shrink: 0;
+    }
+
+    .add-attribute-btn {
+        padding: 7px;
+        background: linear-gradient(135deg, #28a745, #20c997);
+        border: none;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        color: white;
+        font-size: 1.2rem;
+        font-weight: bold;
+        box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .add-attribute-btn:hover {
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            background: linear-gradient(135deg, #20c997, #28a745);
+        }
+
+    .attributes-table-container {
+        flex: 1;
+        overflow: auto;
+        border-radius: 12px;
+        border: 2px solid #e9ecef;
+        background: white;
+    }
+
+    .attributes-table {
+        margin: 0;
+        border-collapse: separate;
+        border-spacing: 0;
+        width: 100%;
+        min-width: 800px; /* Garantisce spazio minimo anche con molte colonne */
+    }
+
+        .attributes-table thead th {
+            background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+            border: none;
+            padding: 15px 12px;
+            font-weight: 600;
+            color: #495057;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            letter-spacing: 0.5px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+            .attributes-table thead th:first-child {
+                border-top-left-radius: 12px;
+            }
+
+            .attributes-table thead th:last-child {
+                border-top-right-radius: 12px;
+            }
+
+        .attributes-table tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #f1f3f4;
+            vertical-align: middle;
+        }
+
+        .attributes-table tbody tr:hover {
+            background-color: rgba(74, 107, 189, 0.05);
+        }
+
+    .hybrid-property-row {
+        background: linear-gradient(135deg, rgba(40, 167, 69, 0.1), rgba(32, 201, 151, 0.1));
+        font-weight: 600;
+        color: #20c997;
+    }
+
+    .action-buttons {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .move-btn {
+        border: none;
+        background: #f8f9fa;
+        border-radius: 6px;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+        .move-btn:hover:not(:disabled) {
+            background: #2B5A72;
+            color: white;
+            transform: translateY(-1px);
+        }
+
+        .move-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+    .remove-btn {
+        background: linear-gradient(135deg, #dc3545, #c82333);
+        border: none;
+        border-radius: 6px;
+        width: 30px;
+        height: 30px;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+    }
+
+        .remove-btn:hover {
+            transform: translateY(-1px) scale(1.05);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.3);
+        }
+
+    .select-modern {
+        border-radius: 8px !important;
+        border: 1px solid #dee2e6 !important;
+        padding: 8px 12px !important;
+        font-size: 0.9rem !important;
+    }
+
+        .select-modern:focus {
+            border-color: #2B5A72 !important;
+            box-shadow: 0 0 0 0.15rem rgba(74, 107, 189, 0.15) !important;
+        }
+
+    .text-edit-modern {
+        border-radius: 8px !important;
+        border: 1px solid #dee2e6 !important;
+        padding: 8px 12px !important;
+        font-size: 0.9rem !important;
+    }
+
+        .text-edit-modern:focus {
+            border-color: #2B5A72 !important;
+            box-shadow: 0 0 0 0.15rem rgba(74, 107, 189, 0.15) !important;
+        }
+
+    /* Responsive design */
+    @@media (max-width: 1200px) {
+        .entity-form-container
+
+    {
+        flex-direction: column;
+    }
+
+    .entity-details-section {
+        flex: none;
+    }
+
+    .modal-modern .modal-dialog {
+        max-width: 98vw;
+        width: 98vw;
+        margin: 10px auto;
+    }
+
+    }
+
+    @@media (max-width: 768px) {
+        .entity-details-section, .entity-attributes-section
+
+    {
+        padding: 15px;
+    }
+
+    .modal-modern .modal-body {
+        padding: 15px;
+    }
+
+    .attributes-table-container {
+        max-height: 50vh;
+    }
+
+    }
+
+    /* Scrollbar personalizzata */
+    .attributes-table-container::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    .attributes-table-container::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 4px;
+    }
+
+    .attributes-table-container::-webkit-scrollbar-thumb {
+        background: #2B5A72;
+        border-radius: 4px;
+    }
+
+        .attributes-table-container::-webkit-scrollbar-thumb:hover {
+            background: #3d5aa3;
+        }
+</style>

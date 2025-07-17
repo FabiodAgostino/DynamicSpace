@@ -1,0 +1,744 @@
+@page "/dynamichierarchies"
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicEntities
+@using Volo.Abp.Application.Dtos;
+@using Infocad.DynamicSpace.DynamicHierarchies;
+@using Infocad.DynamicSpace.Localization
+@using Infocad.DynamicSpace.Permissions;
+@using Microsoft.AspNetCore.Authorization;
+@using Volo.Abp.AspNetCore.Components.Web;
+@inject IDynamicHierarchyService DynamicHierarchyService;
+@inject IDynamicAttributeService DynamicAttributeService;
+@inject IDynamicEntityService DynamicEntityService;
+
+@inject AbpBlazorMessageLocalizerHelper<DynamicSpaceResource> LH;
+@attribute [Authorize(DynamicSpacePermissions.DynamicHierarchy.Default)];
+
+@inherits DynamicSpaceComponentBase
+
+<!-- ==================== PAGINA PRINCIPALE ==================== -->
+<div class="modern-card">
+    <div class="modern-card-header">
+        <Row Class="justify-content-between align-items-center">
+            <Column ColumnSize="ColumnSize.IsAuto">
+                <h2 class="page-title">
+                    <i class="fas fa-share-alt"></i>
+                    @L["Dynamic Hierarchies"]
+                </h2>
+            </Column>
+            <Column ColumnSize="ColumnSize.IsAuto">
+                @if (HasCreatePermission)
+                {
+                    <Button Color="Color.Light" Class="new-btn" Clicked="OpenCreateModal">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        @L["NewHierarchy"]
+                    </Button>
+                }
+            </Column>
+        </Row>
+    </div>
+    <div class="modern-card-body">
+        <DataGrid TItem="DynamicHierarchyDto"
+                  Data="Hierarchies"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  PageSize="PageSize"
+                  Class="modern-datagrid">
+            <DataGridColumns>
+                <DataGridColumn TItem="DynamicHierarchyDto" Field="@nameof(DynamicHierarchyDto.Id)" 
+                                Caption="@L["Actions"]" Width="100px">
+                    <DisplayTemplate>
+                        <Dropdown Direction="Direction.End">
+                            <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="new-btn">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </DropdownToggle>
+                            <DropdownMenu>
+                                @if (HasUpdatePermission)
+                                {
+                                    <DropdownItem Clicked="@(() => OpenEditModal(context))">
+                                        <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                    </DropdownItem>
+                                }
+                                @if (HasDeletePermission)
+                                {
+                                    <DropdownDivider/>
+                                    <DropdownItem Clicked="@(() => DeleteEntity(context))" Class="text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                    </DropdownItem>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicHierarchyDto" Field="@nameof(DynamicHierarchyDto.Name)"
+                                Caption="@L["Name"]">
+                    <DisplayTemplate>
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-tag text-primary me-2"></i>
+                            <strong>@context.Name</strong>
+                        </div>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicHierarchyDto" Field="@nameof(DynamicHierarchyDto.Description)"
+                                Caption="@L["Description"]">
+                    <DisplayTemplate>
+                        @if (!string.IsNullOrEmpty(context.Description))
+                        {
+                            <span>@context.Description</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted font-italic">Nessuna descrizione</span>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicHierarchyDto"
+                                Field="@nameof(DynamicHierarchyDto.Default)"
+                                Caption="@L["Default"]">
+                    <DisplayTemplate>
+                        @if(context.Default)
+                        {
+                            <span class="text-success">
+                                <i class="fas fa-check-circle me-1"></i> @L["Yes"]
+                            </span>
+                        }
+                        else
+                        {
+                            <span class="text-danger">
+                                <i class="fas fa-times-circle me-1"></i> @L["No"]
+                            </span>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+            </DataGridColumns>
+        </DataGrid>
+    </div>
+</div>
+
+<!-- ==================== MODAL DI CREAZIONE SEMPLIFICATO ==================== -->
+<Modal @ref="CreateModal">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-plus-circle me-2"></i>
+                    @L["NewHierarchy"]
+                </ModalTitle>
+                <CloseButton Clicked="CloseCreateModal" />
+            </ModalHeader>
+            
+            <ModalBody>
+                <Validations @ref="CreateValidationsRef" Model="@NewHierarchy" ValidateOnLoad="false">
+                    
+                    <!-- ==================== NAVIGAZIONE GERARCHIA ==================== -->
+                    <div class="navigation-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-sitemap me-2 text-primary"></i>
+                                Navigazione Gerarchia
+                            </h6>
+                            <Button Color="Color.Light" Size="Size.Small" Clicked="ResetNavigation">
+                                <i class="fas fa-undo me-1"></i> Reset
+                            </Button>
+                        </div>
+
+                        <!-- Breadcrumb -->
+                        @if (!string.IsNullOrEmpty(GetNavigationBreadcrumb()))
+                        {
+                            <div class="alert alert-info py-2 mb-3">
+                                <i class="fas fa-route me-2"></i>
+                                <strong>Percorso:</strong> @GetNavigationBreadcrumb()
+                            </div>
+                        }
+
+                        <!-- ROOT SELECTION -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-building text-primary me-1"></i>
+                                Seleziona Entità Root
+                                @if (SelectedRootEntityId.HasValue)
+                                {
+                                    <span class="badge bg-success ms-2">
+                                        <i class="fas fa-check"></i>
+                                    </span>
+                                }
+                            </label>
+                            
+                            <Select TValue="Guid?"
+                                    SelectedValue="SelectedRootEntityId"
+                                    SelectedValueChanged="OnRootEntityChanged"
+                                    Class="form-select">
+                                
+                                <SelectItem TValue="Guid?" Value="@null">
+                                    -- Seleziona entità root --
+                                </SelectItem>
+                                
+                                @foreach (var entity in AvailableRootEntities)
+                                {
+                                    <SelectItem TValue="Guid?" Value="@entity.Id">
+                                        @entity.Name
+                                        @if (!string.IsNullOrEmpty(entity.Description))
+                                        {
+                                            <small class="text-muted"> - @entity.Description</small>
+                                        }
+                                    </SelectItem>
+                                }
+                            </Select>
+                        </div>
+
+                        <!-- NAVIGATION LEVELS -->
+                        @if (SelectedRootEntityId.HasValue)
+                        {
+                            <div class="navigation-levels" style="max-height: 300px; overflow-y: auto;">
+                                @for (int level = 0; level < NavigationLevels.Count; level++)
+                                {
+                                    var levelIndex = level;
+                                    var items = NavigationLevels[level];
+                                    var isLoading = level < LoadingStates.Count && LoadingStates[level];
+                                    var selectedId = level < SelectedIds.Count ? SelectedIds[level] : null;
+
+                                    <div class="mb-3">
+                                       <label class="form-label">
+                                            <i class="fas fa-arrow-right text-secondary me-1"></i>
+                                            Livello @(level + 1)
+                                            @if (selectedId.HasValue)
+                                            {
+                                                <span class="badge bg-success ms-2">
+                                                    <i class="fas fa-check"></i>
+                                                </span>
+                                            }
+                                        </label>
+
+                                        @if (isLoading)
+                                        {
+                                            <div class="text-center py-2">
+                                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                                Caricamento...
+                                            </div>
+                                        }
+                                        else if (items.Any())
+                                        {
+                                            <div class="d-flex align-items-center gap-2">
+                                                <Select TValue="Guid?"
+                                                        SelectedValue="selectedId"
+                                                        SelectedValueChanged="@(id => OnNavigationSelectionChanged(id, levelIndex))"
+                                                        Class="form-select flex-grow-1">
+            
+                                                    <SelectItem TValue="Guid?" Value="@null">
+                                                        -- Seleziona elemento --
+                                                    </SelectItem>
+            
+                                                    @foreach (var item in items)
+                                                    {
+                                                        <SelectItem TValue="Guid?" Value="@item.EntityId">
+                                                            @item.EntityName
+                                                        </SelectItem>
+                                                    }
+                                                </Select>
+        
+                                                @if (level > 0)
+                                                {
+                                                    <Button Color="Color.Light" Size="Size.Small" Clicked="@(() => RemoveLevelAndAfter(levelIndex))" Class="btn-remove-level">
+                                                        <i class="fas fa-trash-alt text-danger"></i>
+                                                    </Button>
+                                                }
+                                            </div>
+    
+                                            <small class="text-muted">
+                                                @items.Count elemento@(items.Count != 1 ? "i" : "") disponibile@(items.Count != 1 ? "i" : "")
+                                            </small>
+}
+                                        else
+                                        {
+                                            <div class="alert alert-warning py-2">
+                                                <i class="fas fa-flag-checkered me-2"></i>
+                                                Fine gerarchia - Nessun elemento figlio
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-arrow-up me-2"></i>
+                                Seleziona prima un'entità root per iniziare la navigazione.
+                            </div>
+                        }
+
+                       
+                    </div>
+
+                    <!-- ==================== FORM INFORMAZIONI ==================== -->
+                    <div class="form-section">
+                        <h6 class="mb-3">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>
+                            Informazioni Gerarchia
+                        </h6>
+
+                        <div class="mb-3">
+                            <Validation MessageLocalizer="@LH.Localize">
+                                <Field>
+                                    <FieldLabel>
+                                        @L["Name"] <span class="text-danger">*</span>
+                                    </FieldLabel>
+                                    <TextEdit @bind-Text="NewHierarchy.Name"
+                                              Class="form-control"
+                                              Placeholder="Nome della gerarchia">
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </TextEdit>
+                                </Field>
+                            </Validation>
+                        </div>
+
+                        <div class="mb-3">
+                            <Validation MessageLocalizer="@LH.Localize">
+                                <Field>
+                                    <FieldLabel>@L["Description"]</FieldLabel>
+                                    <MemoEdit @bind-Text="NewHierarchy.Description"
+                                              Class="form-control"
+                                              Placeholder="Descrizione (opzionale)"
+                                              Rows="3">
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </MemoEdit>
+                                </Field>
+                            </Validation>
+                        </div>
+
+                        <div class="mb-0">
+                            <Check TValue="bool" @bind-Checked="NewHierarchy.Default">
+                                <i class="fas fa-star text-warning me-2"></i>
+                                Imposta come gerarchia predefinita
+                            </Check>
+                        </div>
+                    </div>
+
+                </Validations>
+            </ModalBody>
+            
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseCreateModal">
+                    <i class="fas fa-times me-2"></i> @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary"
+                        Type="ButtonType.Submit"
+                        PreventDefaultOnSubmit="true"
+                        Clicked="CreateHierarchyAsync">
+                    <i class="fas fa-save me-2"></i> @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+<!-- ==================== MODAL DI MODIFICA ==================== -->
+<!-- ==================== MODAL DI MODIFICA COMPLETO ==================== -->
+<Modal @ref="@EditModal">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-edit me-2"></i>
+                    @L["EditHierarchy"]
+                </ModalTitle>
+                <CloseButton Clicked="CloseEditModal"/>
+            </ModalHeader>
+            
+            <ModalBody>
+                <Validations @ref="@EditValidationsRef" Model="@EditHierarchy" ValidateOnLoad="false">
+                    
+                    <!-- ==================== NAVIGAZIONE GERARCHIA - MODAL MODIFICA ==================== -->
+                    <div class="navigation-section mb-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h6 class="mb-0">
+                                <i class="fas fa-sitemap me-2 text-primary"></i>
+                                Navigazione Gerarchia
+                            </h6>
+                            <div class="d-flex gap-2">
+                                <Button Color="Color.Success" Size="Size.Small" Clicked="AddNewNavigationLevel">
+                                    <i class="fas fa-plus me-1"></i> Aggiungi
+                                </Button>
+                                <Button Color="Color.Light" Size="Size.Small" Clicked="ResetNavigation">
+                                    <i class="fas fa-undo me-1"></i> Reset
+                                </Button>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrEmpty(GetNavigationBreadcrumb()))
+                        {
+                            <div class="alert alert-info py-2 mb-3">
+                                <i class="fas fa-route me-2"></i>
+                                <strong>Percorso:</strong> @GetNavigationBreadcrumb()
+                            </div>
+                        }
+
+                        <!-- ROOT SELECTION -->
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-building text-primary me-1"></i>
+                                Seleziona Entità Root
+                                @if (SelectedRootEntityId.HasValue)
+                                {
+                                    <span class="badge bg-success ms-2">
+                                        <i class="fas fa-check"></i>
+                                    </span>
+                                }
+                            </label>
+                            
+                            <div class="d-flex align-items-center gap-2">
+                                <Select TValue="Guid?"
+                                        SelectedValue="SelectedRootEntityId"
+                                        SelectedValueChanged="OnRootEntityChanged"
+                                        Class="form-select flex-grow-1">
+                                    
+                                    <SelectItem TValue="Guid?" Value="@null">
+                                        -- Seleziona entità root --
+                                    </SelectItem>
+                                    
+                                    @foreach (var entity in AvailableRootEntities)
+                                    {
+                                        <SelectItem TValue="Guid?" Value="@entity.Id">
+                                            @entity.Name
+                                            @if (!string.IsNullOrEmpty(entity.Description))
+                                            {
+                                                <small class="text-muted"> - @entity.Description</small>
+                                            }
+                                        </SelectItem>
+                                    }
+                                </Select>
+                                
+                                @if (SelectedRootEntityId.HasValue)
+                                {
+                                    <Button Color="Color.Light" Size="Size.Small" Clicked="ClearRootSelection" Class="btn-remove-level">
+                                        <i class="fas fa-trash-alt text-danger"></i>
+                                    </Button>
+                                }
+                            </div>
+                        </div>
+
+                        <!-- NAVIGATION LEVELS -->
+                        @if (SelectedRootEntityId.HasValue)
+                        {
+                            <div class="navigation-levels" style="max-height: 250px; overflow-y: auto;">
+                                @for (int level = 0; level < NavigationLevels.Count; level++)
+                                {
+                                    var levelIndex = level;
+                                    var items = NavigationLevels[level];
+                                    var isLoading = level < LoadingStates.Count && LoadingStates[level];
+                                    var selectedId = level < SelectedIds.Count ? SelectedIds[level] : null;
+
+                                    <div class="mb-3">
+                                        <label class="form-label">
+                                            <i class="fas fa-arrow-right text-secondary me-1"></i>
+                                            Livello @(level + 1)
+                                            @if (selectedId.HasValue)
+                                            {
+                                                <span class="badge bg-success ms-2">
+                                                    <i class="fas fa-check"></i>
+                                                </span>
+                                            }
+                                        </label>
+
+                                        @if (isLoading)
+                                        {
+                                            <div class="text-center py-2">
+                                                <div class="spinner-border spinner-border-sm me-2" role="status"></div>
+                                                Caricamento...
+                                            </div>
+                                        }
+                                        else if (items.Any())
+                                        {
+                                            <div class="d-flex align-items-center gap-2">
+                                                <Select TValue="Guid?"
+                                                        SelectedValue="selectedId"
+                                                        SelectedValueChanged="@(id => OnNavigationSelectionChanged(id, levelIndex))"
+                                                        Class="form-select flex-grow-1">
+            
+                                                    <SelectItem TValue="Guid?" Value="@null">
+                                                        -- Seleziona elemento --
+                                                    </SelectItem>
+            
+                                                    @foreach (var item in items)
+                                                    {
+                                                        <SelectItem TValue="Guid?" Value="@item.EntityId">
+                                                            @item.EntityName
+                                                        </SelectItem>
+                                                    }
+                                                </Select>
+        
+                                                <Button Color="Color.Light" Size="Size.Small" Clicked="@(() => RemoveLevelAndAfter(levelIndex))" Class="btn-remove-level">
+                                                    <i class="fas fa-trash-alt text-danger"></i>
+                                                </Button>
+                                            </div>
+    
+                                            <small class="text-muted">
+                                                @items.Count elemento@(items.Count != 1 ? "i" : "") disponibile@(items.Count != 1 ? "i" : "")
+                                            </small>
+                                        }
+                                        else
+                                        {
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="alert alert-warning py-2 flex-grow-1 mb-0">
+                                                    <i class="fas fa-flag-checkered me-2"></i>
+                                                    Fine gerarchia - Nessun elemento figlio
+                                                </div>
+                                                <Button Color="Color.Light" Size="Size.Small" Clicked="@(() => RemoveLevelAndAfter(levelIndex))" Class="btn-remove-level">
+                                                    <i class="fas fa-trash-alt text-danger"></i>
+                                                </Button>
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            </div>
+
+                            <!-- SUGGERIMENTO AGGIUNGI LIVELLO -->
+                            @if (CanAddNewLevel())
+                            {
+                                <div class="alert alert-success py-2">
+                                    <i class="fas fa-lightbulb me-2"></i>
+                                    <strong>Suggerimento:</strong> Puoi aggiungere un nuovo livello cliccando su "Aggiungi"
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-arrow-up me-2"></i>
+                                Seleziona prima un'entità root per iniziare la navigazione.
+                            </div>
+                        }
+                    </div>
+
+                    <!-- ==================== FORM INFORMAZIONI ==================== -->
+                    <div class="form-section">
+                        <h6 class="mb-3">
+                            <i class="fas fa-info-circle me-2 text-primary"></i>
+                            Informazioni Gerarchia
+                        </h6>
+
+                        <div class="mb-3">
+                            <Validation MessageLocalizer="@LH.Localize">
+                                <Field>
+                                    <FieldLabel>
+                                        @L["Name"] <span class="text-danger">*</span>
+                                    </FieldLabel>
+                                    <TextEdit @bind-Text="@EditHierarchy.Name" 
+                                              Class="form-control"
+                                              Placeholder="Nome della gerarchia">
+                                        <Feedback>
+                                            <ValidationError/>
+                                        </Feedback>
+                                    </TextEdit>
+                                </Field>
+                            </Validation>
+                        </div>
+
+                        <div class="mb-3">
+                            <Validation MessageLocalizer="@LH.Localize">
+                                <Field>
+                                    <FieldLabel>@L["Description"]</FieldLabel>
+                                    <MemoEdit @bind-Text="@EditHierarchy.Description" 
+                                              Class="form-control"
+                                              Placeholder="Descrizione (opzionale)"
+                                              Rows="3">
+                                        <Feedback>
+                                            <ValidationError/>
+                                        </Feedback>
+                                    </MemoEdit>
+                                </Field>
+                            </Validation>
+                        </div>
+
+                        <div class="mb-0">
+                            <Check TValue="bool" @bind-Checked="EditHierarchy.Default">
+                                <i class="fas fa-star text-warning me-2"></i>
+                                Imposta come gerarchia predefinita
+                            </Check>
+                        </div>
+                    </div>
+
+                </Validations>
+            </ModalBody>
+            
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseEditModal">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary"
+                        Type="@ButtonType.Submit"
+                        PreventDefaultOnSubmit="true"
+                        Clicked="UpdateHierarchyAsync">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+<style>
+    .modal-content {
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    }
+
+    .modal-header {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-bottom: 1px solid #dee2e6;
+        border-radius: 8px 8px 0 0;
+    }
+
+    .modal-title {
+        font-weight: 600;
+        color: #495057;
+    }
+
+    .modal-body {
+        padding: 25px;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+
+    .modal-footer {
+        background: #f8f9fa;
+        border-top: 1px solid #dee2e6;
+        border-radius: 0 0 8px 8px;
+    }
+
+    /* Sezioni */
+    .navigation-section {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 20px;
+    }
+
+    .form-section {
+        background: #fff;
+        border: 1px solid #e9ecef;
+        border-radius: 6px;
+        padding: 20px;
+    }
+
+    /* Form elements */
+    .form-label {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 5px;
+    }
+
+    .form-select, .form-control {
+        border-radius: 6px;
+        border: 1px solid #ced4da;
+    }
+
+    .form-select:focus, .form-control:focus {
+        border-color: #0d6efd;
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+    }
+
+    /* Badge */
+    .badge {
+        font-size: 0.7rem;
+        padding: 3px 6px;
+    }
+
+    /* Alert */
+    .alert {
+        border-radius: 6px;
+        border: 1px solid;
+        margin-bottom: 15px;
+    }
+
+    .alert-info {
+        background-color: #d1ecf1;
+        border-color: #bee5eb;
+        color: #0c5460;
+    }
+
+    .alert-success {
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+        color: #155724;
+    }
+
+    .alert-warning {
+        background-color: #fff3cd;
+        border-color: #ffeaa7;
+        color: #856404;
+    }
+
+    /* Buttons */
+    .btn {
+        border-radius: 6px;
+        font-weight: 600;
+        transition: all 0.2s ease;
+    }
+
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+
+    /* Scrollbar per navigation levels */
+    .navigation-levels::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    .navigation-levels::-webkit-scrollbar-track {
+        background: #f1f1f1;
+        border-radius: 3px;
+    }
+
+    .navigation-levels::-webkit-scrollbar-thumb {
+        background: #c1c1c1;
+        border-radius: 3px;
+    }
+
+    .navigation-levels::-webkit-scrollbar-thumb:hover {
+        background: #a8a8a8;
+    }
+
+    /* Utility classes */
+    .text-primary {
+        color: #0d6efd !important;
+    }
+
+    .text-secondary {
+        color: #6c757d !important;
+    }
+
+    .text-success {
+        color: #198754 !important;
+    }
+
+    .text-warning {
+        color: #ffc107 !important;
+    }
+
+    .text-muted {
+        color: #6c757d !important;
+    }
+
+    /* Responsive */
+    @@media (max-width: 768px) {
+        .modal-body {
+            padding: 15px;
+            max-height: 80vh;
+        }
+        
+        .navigation-section, .form-section {
+            padding: 15px;
+        }
+    }
+</style>

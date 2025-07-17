@@ -1,0 +1,300 @@
+﻿@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicEntityAttributes
+@using Infocad.DynamicSpace.DynamicRules
+@using System.Text.Json
+@using Volo.Abp.Data
+@using System.Reflection
+@inherits DynamicSpaceComponentBase
+
+<div class="custom-card-insert">
+    <div class="card-header-custom">
+        <h4 class="mb-0">
+            <i class="fas fa-cog me-2"></i>
+            New Hybrid Entry
+        </h4>
+    </div>
+
+    <div class="card-body-custom">
+            @if (Entity != null && DynamicAttributes != null && DynamicRules != null && _hybridInstance != null)
+            {
+                @if (!string.IsNullOrEmpty(Entity.Description))
+                {
+                    <div class="alert alert-info" style="border-radius: 10px;">
+                        <i class="fas fa-info-circle me-2"></i>
+                        @Entity.Description
+                    </div>
+                }
+
+                @if (_staticProperties != null && _staticProperties.Any())
+                {
+                    <div class="mb-4">
+                        <h5 class="property-label mb-3">
+                            <i class="fas fa-cube me-2"></i>
+                            Proprietà Base
+                        </h5>
+
+                        <div class="row">
+                                @foreach (var property in _staticProperties)
+                                {
+                                    <div class="col-md-6 mb-3">
+                                        <label class="form-label property-label">@property.Name</label>
+
+                                        @if (property.PropertyType == typeof(string))
+                                        {
+                                            <TextEdit Text="@(GetStaticValue<string>(property.Name))"
+                                                      TextChanged="@(async (string value) => await SetStaticValue(property.Name, value))"
+                                                      Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else if (property.PropertyType == typeof(int) || property.PropertyType == typeof(int?))
+                                        {
+                                            <NumericEdit TValue="int?"
+                                                         Value="@(GetStaticValue<int?>(property.Name))"
+                                                         ValueChanged="@(async (int? value) => await SetStaticValue(property.Name, value))"
+                                                         Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else if (property.PropertyType == typeof(float) || property.PropertyType == typeof(float?))
+                                        {
+                                            <NumericEdit TValue="float?"
+                                                         Value="@(GetStaticValue<float?>(property.Name))"
+                                                         ValueChanged="@(async (float? value) => await SetStaticValue(property.Name, value))"
+                                                         Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else if (property.PropertyType == typeof(double) || property.PropertyType == typeof(double?))
+                                        {
+                                            <NumericEdit TValue="double?"
+                                                         Value="@(GetStaticValue<double?>(property.Name))"
+                                                         ValueChanged="@(async (double? value) => await SetStaticValue(property.Name, value))"
+                                                         Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else if (property.PropertyType == typeof(decimal) || property.PropertyType == typeof(decimal?))
+                                        {
+                                            <NumericEdit TValue="decimal?"
+                                                         Value="@(GetStaticValue<decimal?>(property.Name))"
+                                                         ValueChanged="@(async (decimal? value) => await SetStaticValue(property.Name, value))"
+                                                         Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else if (property.PropertyType == typeof(bool) || property.PropertyType == typeof(bool?))
+                                        {
+                                            <div class="form-check" style="margin-top: 8px;">
+                                                <Check Checked="@(GetStaticValue<bool?>(property.Name))"
+                                                       CheckedChanged="@(async (bool? value) => await SetStaticValue(property.Name, value))"
+                                                       Style="transform: scale(1.2);" />
+                                            </div>
+                                        }
+                                        else if (property.PropertyType == typeof(DateTime) || property.PropertyType == typeof(DateTime?))
+                                        {
+                                            <DateEdit Date="@(GetStaticValue<DateTime?>(property.Name))"
+                                                      DateChanged="@(async (DateTime? value) => await SetStaticValue(property.Name, value))"
+                                                      Style="border-radius: 10px; width:300px;" />
+                                        }
+                                        else
+                                        {
+                                            <TextEdit Text="@(GetStaticValue<string>(property.Name))"
+                                                      TextChanged="@(async (string value) => await SetStaticValue(property.Name, value))"
+                                                      Style="border-radius: 10px; width:300px;" />
+                                        }
+                                    </div>
+                                }
+                        </div>
+                    </div>
+                }
+
+                @if (Entity.Attributes.Any())
+                {
+                    @if (_staticProperties != null && _staticProperties.Any())
+                    {
+                        <div class="section-divider"></div>
+                    }
+
+                    <div class="mb-4">
+                        <h5 class="property-label mb-3">
+                            <i class="fas fa-sliders-h me-2"></i>
+                            Proprietà Dinamiche
+                        </h5>
+
+                        <div class="row">
+                            <Validations @ref="_validations" Mode="ValidationMode.Auto" StatusChanged="@OnStatusChanged">
+                            @foreach (var entityAttribute in Entity.Attributes.OrderBy(a => a.Order))
+                            {
+                                var attributes = DynamicAttributes.FirstOrDefault(x => x.Id == entityAttribute.DynamicAttributeId);
+                                <div class="col-md-6 mb-3">
+                                    <label class="form-label property-label">@entityAttribute.Label</label>
+                                    @{
+                                        var dynamicRule = DynamicRules.FirstOrDefault(x => x.Id == entityAttribute.DynamicRuleId);
+                                        dynamicRule ??= new DynamicRuleDto();
+                                    }
+                                    <Validation UsePattern>
+                                        @switch (attributes.Type)
+                                        {
+                                            case DynamicAttributeType.Navigation:
+                                                var navigationValue = JsonSerializer.Deserialize<NavSettingDto>(attributes.NavigationSettings);
+
+                                            <Validation Validator="@ValidateNavigation">
+                                                <BaseNavDynamicEntity NavAttribute="navigationValue" OnSelectChangedCallBack="@(async (string? value) =>await SetDynamicValue(attributes.Name, value))"></BaseNavDynamicEntity>
+                                                </Validation>
+                                            break;
+                                            case DynamicAttributeType.Text:
+                                                <TextEdit Text="@(GetDynamicValue<string?>(attributes.Name))"
+                                                          TextChanged="@(async (string? value) => await SetDynamicValue(attributes.Name, value))"
+                                                          Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                          Style="border-radius: 10px; width:300px;">
+                                                    <Feedback>
+                                                        <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                                    </Feedback>
+                                                </TextEdit>
+                                                break;
+
+                                            case DynamicAttributeType.Number:
+                                                <NumericEdit TValue="int?"
+                                                             Value="@(GetDynamicValue<int?>(attributes.Name))"
+                                                             ValueChanged="@(async value => await SetDynamicValue(attributes.Name, value))"
+                                                             Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                             Style="border-radius: 10px; width:300px;">
+                                                    <Feedback>
+                                                        <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                                    </Feedback>
+                                                </NumericEdit>
+                                                break;
+
+                                            case DynamicAttributeType.Float:
+                                                <NumericEdit TValue="float?"
+                                                             Value="@(GetDynamicValue<float?>(attributes.Name))"
+                                                             ValueChanged="@(async value => await SetDynamicValue(attributes.Name, value))"
+                                                             Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                             Style="border-radius: 10px; width:300px;">
+                                                    <Feedback>
+                                                        <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                                    </Feedback>
+                                                </NumericEdit>
+                                                break;
+
+                                            case DynamicAttributeType.Boolean:
+                                                <div class="form-check" style="margin-top: 8px;">
+                                                    <Check Checked="@(GetDynamicValue<bool?>(attributes.Name))"
+                                                           CheckedChanged="@(async (bool? value) => await SetDynamicValue(attributes.Name, value))"
+                                                           Style="transform: scale(1.2);" />
+                                                </div>
+                                                break;
+
+                                            case DynamicAttributeType.DateTime:
+                                                <DateEdit Date="@(GetDynamicValue<DateTime?>(attributes.Name))"
+                                                          DateChanged="@(async (DateTime? value) => await SetDynamicValue(attributes.Name, value))"
+                                                          Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                          Style="border-radius: 10px; width:300px;">
+                                                    <Feedback>
+                                                        <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                                    </Feedback>
+                                                </DateEdit>
+                                                break;
+                                        }
+                                    </Validation>
+                                </div>
+                            }
+                        </Validations>
+
+                        </div>
+                    </div>
+                }
+            }
+    </div>
+
+    <div class="card-footer bg-light" style="border-radius: 0 0 16px 16px; padding: 15px 20px;">
+        <div class="d-flex justify-content-end gap-2">
+            <Button Color="Color.Secondary" Clicked="CloseModal" Class="new-btn">
+                <i class="fas fa-times me-2"></i>
+                @L["Cancel"]
+            </Button>
+            <Button Color="Color.Primary" Clicked="SaveEntry" Disabled="_disabled" Class="new-btn">
+                <i class="fas fa-save me-2"></i>
+                @L["Save"]
+            </Button>
+        </div>
+    </div>
+</div>
+
+<style>
+    .custom-card-insert {
+        border-radius: 25px;
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+        background-color: white;
+    }
+
+    .card-header-custom {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 16px 16px 0 0 !important;
+        padding: 15px 20px;
+        border: none;
+    }
+
+    .card-body-custom {
+        padding: 20px;
+    }
+
+    .property-label {
+        font-weight: 500;
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+
+    .property-value {
+        font-weight: 600;
+        font-size: 1.1rem;
+        color: #343a40;
+        word-break: break-word;
+    }
+
+    .property-row {
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+        .property-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+    .new-btn {
+        border-radius: 20px;
+        padding: 8px 20px;
+        font-weight: 500;
+    }
+
+    .dropdown-custom .btn {
+        border-radius: 20px;
+        box-shadow: none;
+    }
+
+    .empty-state {
+        background-color: #f8f9fa;
+        border-radius: 16px;
+        padding: 30px;
+        text-align: center;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
+
+    .section-divider {
+        margin: 2rem 0;
+        border-top: 2px solid #e9ecef;
+    }
+
+    @@media (max-width: 768px) {
+        .card-body-custom {
+            padding: 15px;
+        }
+
+        .card-header-custom {
+            padding: 12px 15px;
+        }
+
+        .new-btn {
+            width: 100% !important;
+            margin-bottom: 10px !important;
+        }
+    }
+</style>

@@ -1,0 +1,58 @@
+﻿@inherits BaseHybridComponent<HybridRoomDto>
+
+@page "/hybrid/{TypeName}"
+@inject IHybridRoomService HybridRoomService;
+@using Infocad.DynamicSpace.Blazor.Client.Pages.Components.HybridRooms
+@using Infocad.DynamicSpace.HybridRooms
+@using System.Dynamic
+
+@if (IsLoading)
+{
+    <div class="text-center">
+        <div class="spinner-border" role="status">
+            <span class="sr-only">Caricamento...</span>
+        </div>
+    </div>
+}
+else
+{
+    <ListHybridRooms Entity="DynamicEntity" Attributes="DynamicAttributes" CreateModal="@(async () => await OpenCreateModal())" EditModal="@(async (HybridRoomDto hybridInstance) => await OpenEditModal(hybridInstance))" DeleteEntity="@(async (Guid id) => await DeleteEntity(id))" Items="@Items" DtoType="DtoType" BaseName="@_baseName" />
+}
+
+
+<Modal @ref="CreateModal">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (DynamicEntity != null && DynamicAttributes != null && DynamicRules != null && !string.IsNullOrEmpty(DtoType?.AssemblyQualifiedName))
+            {
+                <CreateHybridRoomUI Entity="@DynamicEntity"
+                                    DynamicAttributes="@DynamicAttributes"
+                                    DynamicRules="@DynamicRules"
+                                    Save="@SaveNewEntity"
+                                    Close="@CloseCreateModal" />
+            }
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+<Modal @ref="EditModal">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (DynamicEntity != null && DynamicAttributes != null && DynamicRules != null && !string.IsNullOrEmpty(DtoType?.AssemblyQualifiedName))
+            {
+                <UpdateHybridRoomsUI HybridRoom="@SelectedItem"
+                                     Entity="@DynamicEntity"
+                                     DynamicAttributes="@DynamicAttributes"
+                                     DynamicRules="@DynamicRules"
+                                     Edit="@UpdateEntity"
+                                     Close="@CloseEditModal" />
+            }
+        </ModalBody>
+    </ModalContent>
+</Modal>

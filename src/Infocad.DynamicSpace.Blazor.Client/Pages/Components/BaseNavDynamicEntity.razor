@@ -1,0 +1,21 @@
+@using Infocad.DynamicSpace.DynamicEntry
+@inject System.IServiceProvider ServiceProvider;
+@inject IDynamicEntryService DynamicEntryService;
+
+@inherits DynamicSpaceComponentBase;
+
+@if (Values.Any())
+{
+    <Select TValue="Guid" SelectedValueChanged="OnSelectChanged">
+        <ChildContent>
+            <SelectItem Value="Guid.Empty" Disabled>Seleziona...</SelectItem>
+            @foreach (var entity in Values)
+            {
+                <SelectItem Value="@(entity.Key)">@entity.Value</SelectItem>
+            }
+        </ChildContent>
+        <Feedback>
+            <ValidationError>Seleziona un elemento valido</ValidationError>
+        </Feedback>
+    </Select>
+}

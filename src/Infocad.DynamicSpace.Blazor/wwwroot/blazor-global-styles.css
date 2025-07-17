@@ -1,0 +1,114 @@
+#blazor-error-ui {
+    background: lightyellow;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, 0.2);
+    display: none;
+    left: 0;
+    padding: 0.6rem 1.25rem 0.7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 0.75rem;
+    top: 0.5rem;
+}
+
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+    .lpx-sidebar-container:not(:hover) .lpx-logo-container {
+        width: 77px !important;
+        background: #2B5A72 !important;
+    }
+}
+@media only screen and (min-width: 768px) and (max-width: 1199px) {
+    .lpx-sidebar-container {
+        min-width: 82px !important;
+        background: #2B5A72 !important;
+    }
+}
+
+.lpx-sidebar {
+    background: #2B5A72 !important;
+}
+.lpx-nav-menu {
+    background: #2B5A72 !important;
+}
+
+.lpx-logo-container {
+    background: #2B5A72 !important;
+}
+
+.lpx-nav-menu .lpx-menu-item-link.selected, .lpx-nav-menu .lpx-menu-item-link.expanded {
+    background: #1B3D4A !important;
+}
+.lpx-sidebar .lpx-logo-container .menu-collapse-icon
+{
+    color:white !important;
+}
+.lpx-nav-menu .lpx-menu-item-link.selected .lpx-menu-item-icon, .lpx-nav-menu .lpx-menu-item-link.selected .dd-icon, .lpx-nav-menu .lpx-menu-item-link.expanded .lpx-menu-item-icon, .lpx-nav-menu .lpx-menu-item-link.expanded .dd-icon {
+    color: white !important;
+}
+.flatpickr-calendar.static {
+    top: unset !important;
+}
+
+:root .lpx-brand-logo {
+    --lpx-logo: url(/images/logo/infocad2.png);
+    margin-left: 6px;
+    --lpx-logo-icon: url('/images/logo/thumb-infocad2.png');
+}
+
+.lpx-nav-menu .lpx-menu-item-link.selected .lpx-menu-item-icon {
+    /* color: var(--lpx-brand); */
+    opacity: 1;
+    color: white !important;
+}
+
+.lpx-nav-menu .lpx-menu-item-link:hover .lpx-menu-item-icon {
+    color: white !important;
+}
+
+.lpx-nav-menu .lpx-menu-item-link.active-menu-item .lpx-menu-item-icon {
+    color: white !important;
+}
+
+    .lpx-nav-menu .lpx-menu-item-link.active-menu-item .lpx-menu-item-icon .lpx-icon {
+        color: white !important;
+    }
+
+
+.clickable-link {
+    color: #0066cc;
+    text-decoration: none;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    display: inline-block;
+    position: relative;
+}
+
+    /* Effetto hover */
+    .clickable-link:hover {
+        color: #004499;
+        background-color: rgba(0, 102, 204, 0.1);
+        text-decoration: underline;
+        transform: translateY(-1px);
+    }
+
+    /* Effetto focus per accessibilità */
+    .clickable-link:focus {
+        outline: 2px solid #0066cc;
+        outline-offset: 2px;
+    }
+
+    /* Effetto click */
+    .clickable-link:active {
+        transform: translateY(0);
+        background-color: rgba(0, 102, 204, 0.2);
+    }
+
+/* Your Global Styles */

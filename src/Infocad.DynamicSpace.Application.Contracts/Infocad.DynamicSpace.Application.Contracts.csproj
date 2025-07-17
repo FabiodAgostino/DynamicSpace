@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\common.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Infocad.DynamicSpace</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Infocad.DynamicSpace.Domain.Shared\Infocad.DynamicSpace.Domain.Shared.csproj" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <PackageReference Include="Volo.Abp.Ddd.Domain" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.PermissionManagement.Application.Contracts" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.FeatureManagement.Application.Contracts" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.SettingManagement.Application.Contracts" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.Identity.Application.Contracts" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.Account.Application.Contracts" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.TenantManagement.Application.Contracts" Version="9.1.0" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <Reference Include="Infocad.GlobalConfig">
+      <HintPath>..\..\..\..\..\Assembly\netstandard2.1\Infocad.GlobalConfig.dll</HintPath>
+    </Reference>
+    <Reference Include="InfocadPowerBIModels">
+      <HintPath>..\..\..\..\..\Assembly\netstandard2.0\InfocadPowerBIModels.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,50 @@
+﻿@using Infocad.DynamicSpace.Blazor.Client.Pages.Components
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicEntry
+@using System.Dynamic
+@using Infocad.DynamicSpace.DynamicFormats
+@using Infocad.DynamicSpace.DynamicRules
+@page "/dynamicui/{id:guid}"
+@inject IDynamicEntityService _entityService
+@inject IDynamicEntryService _entryService
+@inject IDynamicAttributeService _attributeService
+@inject IDynamicFormatService _formatService
+@inject IDynamicRuleService _ruleService
+
+
+@inherits DynamicSpaceComponentBase
+
+@if (DynamicEntity != null && DynamicEntity.Attributes != null && DynamicEntity.Attributes.Any())
+{
+    <ListDynamicUI Entity="DynamicEntity" Entries="PagedEntries" Attributes="DynamicAttributes" CreateModal="@(async () => await OpenCreateModal())" EditModal="@(async (ExpandoObject extraProperty) => await OpenEditModal(extraProperty))" DeleteEntry="async (Guid id) => await DeleteEntry(id)" Formats="DynamicFormats" />
+}
+
+
+<Modal @ref="CreateModal">
+    <ModalContent Size="ModalSize.Large">
+        <ModalHeader>
+            <h4>@L["New Entry"]</h4>
+        </ModalHeader>
+        <ModalBody>
+            <CreateDynamicUI Entity="DynamicEntity" DynamicAttributes="DynamicAttributes" Save="@(async (DynamicEntryDto dynamicEntry) => await SaveEntry(dynamicEntry))" Close="@(async () => await CreateModal.Hide())" DynamicRules="DynamicRules"/>
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+<Modal @ref="EditModal">
+    <ModalContent Size="ModalSize.Large">
+        <ModalHeader>
+            <h4>@L["Edit Entry"]</h4>
+        </ModalHeader>
+        <ModalBody>
+            <UpdateDynamicUI Entity="DynamicEntity" DynamicAttributes="DynamicAttributes" ExtraProperty="EditExtraProperty" Edit="@(async (DynamicEntryDto dynamicEntry) => await EditEntry(dynamicEntry))" Close="@(async () => await EditModal.Hide())" DynamicRules="DynamicRules" />
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+@code
+{
+    [Parameter]
+    public Guid Id { get; set; }
+}

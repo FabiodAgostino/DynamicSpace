@@ -1,0 +1,109 @@
+{
+  "template": "app",
+  "imports": {
+    "Volo.Abp.LeptonXLiteTheme": {
+      "version": "4.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.Account": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.OpenIddict": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.Identity": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.TenantManagement": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.SettingManagement": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.PermissionManagement": {
+      "version": "9.1.0",
+      "isInstalled": true
+    },
+    "Volo.Abp.FeatureManagement": {
+      "version": "9.1.0",
+      "isInstalled": true
+    }
+  },
+  "folders": {
+    "items": {
+      "src": {},
+      "test": {}
+    }
+  },
+  "packages": {
+    "Infocad.DynamicSpace.Application": {
+      "path": "src/Infocad.DynamicSpace.Application/Infocad.DynamicSpace.Application.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.Application.Tests": {
+      "path": "test/Infocad.DynamicSpace.Application.Tests/Infocad.DynamicSpace.Application.Tests.abppkg",
+      "folder": "test"
+    },
+    "Infocad.DynamicSpace.Domain.Shared": {
+      "path": "src/Infocad.DynamicSpace.Domain.Shared/Infocad.DynamicSpace.Domain.Shared.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.Application.Contracts": {
+      "path": "src/Infocad.DynamicSpace.Application.Contracts/Infocad.DynamicSpace.Application.Contracts.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.HttpApi": {
+      "path": "src/Infocad.DynamicSpace.HttpApi/Infocad.DynamicSpace.HttpApi.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.HttpApi.Client": {
+      "path": "src/Infocad.DynamicSpace.HttpApi.Client/Infocad.DynamicSpace.HttpApi.Client.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.EntityFrameworkCore.Tests": {
+      "path": "test/Infocad.DynamicSpace.EntityFrameworkCore.Tests/Infocad.DynamicSpace.EntityFrameworkCore.Tests.abppkg",
+      "folder": "test"
+    },
+    "Infocad.DynamicSpace.EntityFrameworkCore": {
+      "path": "src/Infocad.DynamicSpace.EntityFrameworkCore/Infocad.DynamicSpace.EntityFrameworkCore.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.TestBase": {
+      "path": "test/Infocad.DynamicSpace.TestBase/Infocad.DynamicSpace.TestBase.abppkg",
+      "folder": "test"
+    },
+    "Infocad.DynamicSpace.Domain.Tests": {
+      "path": "test/Infocad.DynamicSpace.Domain.Tests/Infocad.DynamicSpace.Domain.Tests.abppkg",
+      "folder": "test"
+    },
+    "Infocad.DynamicSpace.HttpApi.Client.ConsoleTestApp": {
+      "path": "test/Infocad.DynamicSpace.HttpApi.Client.ConsoleTestApp/Infocad.DynamicSpace.HttpApi.Client.ConsoleTestApp.abppkg",
+      "folder": "test"
+    },
+    "Infocad.DynamicSpace.DbMigrator": {
+      "path": "src/Infocad.DynamicSpace.DbMigrator/Infocad.DynamicSpace.DbMigrator.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.Blazor": {
+      "path": "src/Infocad.DynamicSpace.Blazor/Infocad.DynamicSpace.Blazor.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.Blazor.Client": {
+      "path": "src/Infocad.DynamicSpace.Blazor.Client/Infocad.DynamicSpace.Blazor.Client.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.Domain": {
+      "path": "src/Infocad.DynamicSpace.Domain/Infocad.DynamicSpace.Domain.abppkg",
+      "folder": "src"
+    },
+    "Infocad.DynamicSpace.MongoDB": {
+      "path": "src/Infocad.DynamicSpace.MongoDB/Infocad.DynamicSpace.MongoDB.abppkg",
+      "folder": "src"
+    }
+  }
+}

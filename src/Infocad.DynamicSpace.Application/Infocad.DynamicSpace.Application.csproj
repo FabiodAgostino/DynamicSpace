@@ -1,0 +1,41 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <Import Project="..\..\common.props" />
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Infocad.DynamicSpace</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Infocad.DynamicSpace.Domain\Infocad.DynamicSpace.Domain.csproj" />
+    <ProjectReference Include="..\Infocad.DynamicSpace.Application.Contracts\Infocad.DynamicSpace.Application.Contracts.csproj" />
+    <ProjectReference Include="..\Infocad.DynamicSpace.EntityFrameworkCore\Infocad.DynamicSpace.EntityFrameworkCore.csproj" />
+    <ProjectReference Include="..\Infocad.DynamicSpace.MongoDB\Infocad.DynamicSpace.MongoDB.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI" Version="9.4.4-preview.1.25259.16" />
+    <PackageReference Include="Microsoft.Extensions.AI.Ollama" Version="9.4.3-preview.1.25230.7" />
+    <PackageReference Include="Microsoft.SemanticKernel" Version="1.48.0" />
+    <PackageReference Include="OllamaSharp" Version="5.1.13" />
+    <PackageReference Include="Volo.Abp.BlobStoring" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.PermissionManagement.Application" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.FeatureManagement.Application" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.SettingManagement.Application" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.Account.Application" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.Identity.Application" Version="9.1.0" />
+    <PackageReference Include="Volo.Abp.TenantManagement.Application" Version="9.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Infocad.GlobalConfig">
+      <HintPath>..\..\..\..\..\Assembly\netstandard2.1\Infocad.GlobalConfig.dll</HintPath>
+    </Reference>
+    <Reference Include="InfocadPowerBIModels">
+      <HintPath>..\..\..\..\..\Assembly\netstandard2.0\InfocadPowerBIModels.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
+</Project>

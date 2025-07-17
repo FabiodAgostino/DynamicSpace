@@ -1,0 +1,525 @@
+﻿@using System.Dynamic
+@using Infocad.DynamicSpace.DynamicEntries
+@using Infocad.DynamicSpace.DynamicEntry
+@using System.Text.Json
+@using System.Reflection
+@using Volo.Abp.Data
+@using Blazorise
+@using Microsoft.Extensions.Localization
+@using Infocad.DynamicSpace.Localization
+@inject System.IServiceProvider ServiceProvider;
+@inject IDynamicEntryService DynamicEntryService;
+@inject IStringLocalizer<DynamicSpaceResource> L
+
+@inherits DynamicSpaceComponentBase;
+
+<Modal @ref="modalRef" Closing="@OnModalClosing">
+    <ModalContent Centered Size="ModalSize.ExtraLarge">
+        <ModalHeader>
+            <ModalTitle>
+                <i class="fas fa-database me-2"></i>
+                Dettagli Entità
+                @if (!string.IsNullOrEmpty(_title))
+                {
+                    <span class="entity-badge">@_title</span>
+                }
+            </ModalTitle>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (FullItem != null)
+            {
+                var expandoDict = (IDictionary<string, object>)FullItem;
+                
+                <div class="mb-3 text-center">
+                    <div class="stats-badge">
+                        <i class="fas fa-list-ol me-2"></i>
+                        Totale Proprietà: @expandoDict.Count
+                    </div>
+                </div>
+
+                <div class="modern-table-container">
+                    <table class="modern-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 25%;">
+                                    <i class="fas fa-key me-2"></i>
+                                    PROPRIETÀ
+                                </th>
+                                <th style="width: 55%;">
+                                    <i class="fas fa-eye me-2"></i>
+                                    VALORE
+                                </th>
+                                <th style="width: 20%;">
+                                    <i class="fas fa-code me-2"></i>
+                                    TIPO DATI
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var kvp in expandoDict.OrderBy(x => x.Key))
+                            {
+                                <tr class="table-row">
+                                    <td class="property-cell">
+                                        <div class="property-name">@kvp.Key</div>
+                                    </td>
+                                    <td class="value-cell">@RenderValue(kvp.Value)</td>
+                                    <td class="type-cell">
+                                        <span class="type-badge">@kvp.Value?.GetType().Name</span>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(_oldEntity))
+            {
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary mb-3" role="status"></div>
+                    <h5>Caricamento dati...</h5>
+                </div>
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-exclamation-triangle text-warning fa-3x mb-3"></i>
+                    <h5>Nessun dato disponibile</h5>
+                </div>
+            }
+        </ModalBody>
+        <ModalFooter>
+            <Button Color="Color.Primary" Clicked="CloseModal">
+                <i class="fas fa-times me-2"></i>
+                Chiudi
+            </Button>
+        </ModalFooter>
+    </ModalContent>
+</Modal>
+
+@code {
+    private Modal modalRef = default!;
+
+    private string _oldEntity = string.Empty;
+    private string _title = string.Empty;
+    public ExpandoObject Item { get; set; }
+    public ExpandoObject FullItem { get; set; }
+
+    public async Task ShowModal(ExpandoObject item)
+    {
+        if (String.IsNullOrEmpty(_oldEntity))
+        {
+            if (item != null)
+            {
+                Item = item;
+                var dict = (IDictionary<string, object>)Item;
+
+                if (dict.TryGetValue("Domain", out var domainValue))
+                {
+                    _oldEntity = domainValue?.ToString() ?? string.Empty;
+                }
+
+                var type = Type.GetType(_oldEntity);
+
+                if (type == typeof(DynamicEntryDto))
+                    await GetDynamicItem();
+                else
+                {
+                    _title = type?.Name ?? string.Empty;
+                    await GetHybridItem();
+                }
+            }
+        }
+        await modalRef.Show();
+    }
+
+    public async Task CloseModal()
+    {
+        await modalRef.Hide();
+    }
+
+    private Task OnModalClosing(ModalClosingEventArgs e)
+    {
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (String.IsNullOrEmpty(_oldEntity))
+        {
+            if (Item != null)
+            {
+                var dict = (IDictionary<string, object>)Item;
+
+                if (dict.TryGetValue("Domain", out var domainValue))
+                {
+                    _oldEntity = domainValue?.ToString() ?? string.Empty;
+                }
+
+                var type = Type.GetType(_oldEntity);
+
+                if (type == typeof(DynamicEntryDto))
+                    await GetDynamicItem();
+                else
+                {
+                    _title = type?.Name ?? string.Empty;
+                    await GetHybridItem();
+                }
+            }
+        }
+    }
+
+    private async Task GetHybridItem()
+    {
+        dynamic obj = Item;
+        var typeName = _oldEntity.Split(".")[3];
+        var getTypeName = typeName
+            .Replace("Dto", "Service")
+            .Replace("Hybrid", "IHybrid");
+        var type = Type.GetType(_oldEntity.Replace(typeName, getTypeName));
+        object? service = ServiceProvider.GetService(type);
+        var method = service.GetType().GetMethod("GetById");
+        var dict = (IDictionary<string, object>)Item;
+        Guid guid = Guid.Empty;
+        if (dict.TryGetValue("Id", out var g))
+            guid = Guid.Parse(g.ToString());
+        var task = method.Invoke(service, [guid]);
+        await (Task)task;
+        var resultProperty = task.GetType().GetProperty("Result");
+        if (resultProperty != null)
+        {
+            dynamic entity = resultProperty.GetValue(task);
+
+            FullItem = new ExpandoObject();
+            var expandoDict = (IDictionary<string, object>)FullItem;
+
+            // Aggiungi le ExtraProperties
+            ExtraPropertyDictionary keyValuePairs = entity.ExtraProperties;
+            foreach (var kvp in keyValuePairs)
+            {
+                expandoDict[kvp.Key] = kvp.Value;
+            }
+
+            // Aggiungi le proprietà statiche
+            Type entityType = entity.GetType();
+            var staticProperties = entityType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => p.CanRead && !IsBaseProperty(p.Name));
+
+            foreach (var property in staticProperties)
+            {
+                var value = property.GetValue(entity);
+                expandoDict[property.Name] = value;
+            }
+        }
+    }
+
+    private async Task GetDynamicItem()
+    {
+        var dict = (IDictionary<string, object>)Item;
+        Guid guid = Guid.Empty;
+
+        if (dict.TryGetValue("Id", out var g))
+            guid = Guid.Parse(g.ToString());
+
+        var result = await DynamicEntryService.GetById(guid);
+        FullItem = new ExpandoObject();
+        var expandoDict = (IDictionary<string, object>)FullItem;
+        foreach (var kvp in result.ExtraProperties)
+        {
+            expandoDict[kvp.Key] = kvp.Value;
+        }
+    }
+
+    private bool IsBaseProperty(string propertyName)
+    {
+        var baseProperties = new HashSet<string>
+        {
+            "Id", "CreationTime", "CreatorId", "LastModificationTime",
+            "LastModifierId", "DeletionTime",
+            "TenantId", "ExtraProperties", "DynamicEntityId"
+        };
+
+        return baseProperties.Contains(propertyName);
+    }
+
+    private RenderFragment RenderValue(object? value)
+    {
+        return builder =>
+        {
+            if (value == null)
+            {
+                builder.AddMarkupContent(0, "<span class=\"text-danger fst-italic\"><i class=\"fas fa-ban me-1\"></i>null</span>");
+                return;
+            }
+
+            switch (value)
+            {
+                case Guid guid when guid == Guid.Empty:
+                    builder.AddMarkupContent(0, "<span class=\"text-muted fst-italic\"><i class=\"fas fa-circle-notch me-1\"></i>Empty</span>");
+                    break;
+
+                case Guid guid:
+                    builder.AddMarkupContent(0, $"<span class=\"text-info font-monospace\" title=\"{guid}\"><i class=\"fas fa-fingerprint me-1\"></i>{guid.ToString()[..8]}...</span>");
+                    break;
+
+                case DateTime dateTime:
+                    builder.AddMarkupContent(0, $"<span class=\"text-warning\"><i class=\"fas fa-calendar me-1\"></i>{dateTime:dd/MM/yyyy HH:mm}</span>");
+                    break;
+
+                case bool boolean:
+                    var boolIcon = boolean ? "fas fa-check-circle text-success" : "fas fa-times-circle text-danger";
+                    var boolText = boolean ? "Vero" : "Falso";
+                    builder.AddMarkupContent(0, $"<span><i class=\"{boolIcon} me-1\"></i>{boolText}</span>");
+                    break;
+
+                case string str when string.IsNullOrEmpty(str):
+                    builder.AddMarkupContent(0, "<span class=\"text-muted fst-italic\"><i class=\"fas fa-circle me-1\"></i>Vuoto</span>");
+                    break;
+
+                case string str:
+                    var strDisplay = str.Length > 50 ? str[..47] + "..." : str;
+                    var strEncoded = System.Net.WebUtility.HtmlEncode(str);
+                    builder.AddMarkupContent(0, $"<span class=\"text-success\" title=\"{strEncoded}\"><i class=\"fas fa-quote-left me-1\"></i>{System.Net.WebUtility.HtmlEncode(strDisplay)}</span>");
+                    break;
+
+                case int or long or decimal or double or float or short or byte:
+                    builder.AddMarkupContent(0, $"<span class=\"text-primary font-monospace\"><i class=\"fas fa-hashtag me-1\"></i>{value}</span>");
+                    break;
+
+                default:
+                    // Per oggetti complessi (JSON), mostra con tooltip completo
+                    var objStringValue = value.ToString();
+                    if (!string.IsNullOrEmpty(objStringValue) && objStringValue != value.GetType().ToString())
+                    {
+                        // Se sembra JSON o un oggetto serializzato
+                        if (objStringValue.StartsWith("{") || objStringValue.StartsWith("["))
+                        {
+                            var jsonDisplay = objStringValue.Length > 100 ? objStringValue[..97] + "..." : objStringValue;
+                            var jsonEncoded = System.Net.WebUtility.HtmlEncode(objStringValue);
+                            builder.AddMarkupContent(0, $"<span class=\"text-info font-monospace\" title=\"{jsonEncoded}\" style=\"cursor: help;\"><i class=\"fas fa-code me-1\"></i>{System.Net.WebUtility.HtmlEncode(jsonDisplay)}</span>");
+                        }
+                        else
+                        {
+                            var objDisplay = objStringValue.Length > 50 ? objStringValue[..47] + "..." : objStringValue;
+                            var objEncoded = System.Net.WebUtility.HtmlEncode(objStringValue);
+                            builder.AddMarkupContent(0, $"<span class=\"text-secondary\" title=\"{objEncoded}\"><i class=\"fas fa-cube me-1\"></i>{System.Net.WebUtility.HtmlEncode(objDisplay)}</span>");
+                        }
+                    }
+                    else
+                    {
+                        builder.AddMarkupContent(0, $"<span class=\"text-muted fst-italic\"><i class=\"fas fa-sitemap me-1\"></i>Oggetto: {value.GetType().Name}</span>");
+                    }
+                    break;
+            }
+        };
+    }
+
+    private string GetDataType(object? value)
+    {
+        return value?.GetType().Name;
+    }
+}
+
+<style>
+    .entity-badge {
+        background: linear-gradient(135deg, #0d6efd, #0a58ca);
+        color: white;
+        padding: 6px 16px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-left: 12px;
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+    }
+
+    .stats-badge {
+        background: linear-gradient(135deg, #17a2b8, #138496);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-size: 1rem;
+        font-weight: 600;
+        display: inline-block;
+        box-shadow: 0 4px 15px rgba(23, 162, 184, 0.3);
+        border: 3px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .modern-table-container {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+        border: 1px solid #e3f2fd;
+        max-height: 65vh;
+        overflow-y: auto;
+    }
+
+    .modern-table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin: 0;
+    }
+
+    .modern-table thead {
+       background: linear-gradient(135deg, #2B5A72, #224D5E);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+
+    .modern-table thead th {
+        color: white;
+        padding: 18px 20px;
+        font-weight: 700;
+        font-size: 0.85rem;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        border: none;
+        position: relative;
+    }
+
+    .modern-table thead th::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+    }
+
+    .table-row {
+        transition: all 0.3s ease;
+        border-bottom: 1px solid #f8f9fa;
+    }
+
+    .table-row:nth-child(even) {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    }
+
+    .table-row:hover {
+        background: linear-gradient(135deg, #e3f2fd, #bbdefb) !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(13, 110, 253, 0.15);
+    }
+
+    .property-cell {
+        padding: 16px 20px;
+        border: none;
+        vertical-align: middle;
+    }
+
+    .property-name {
+        font-weight: 700;
+        font-size: 0.95rem;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    .value-cell {
+        padding: 16px 20px;
+        border: none;
+        vertical-align: middle;
+        word-break: break-word;
+    }
+
+    .type-cell {
+        padding: 16px 20px;
+        border: none;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .type-badge {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        padding: 6px 12px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        font-family: 'Courier New', Monaco, monospace;
+        display: inline-block;
+        box-shadow: 0 2px 6px rgba(108, 117, 125, 0.3);
+        border: 2px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .font-monospace {
+        font-family: 'Courier New', Monaco, monospace !important;
+    }
+
+    /* Miglioramenti per i valori colorati */
+    .text-danger {
+        color: #dc3545 !important;
+        font-weight: 600;
+    }
+
+    .text-muted {
+        color: #6c757d !important;
+        font-weight: 500;
+    }
+
+    .text-info {
+        color: #0dcaf0 !important;
+        font-weight: 600;
+    }
+
+    .text-warning {
+        color: #fd7e14 !important;
+        font-weight: 600;
+    }
+
+    .text-success {
+        color: #198754 !important;
+        font-weight: 600;
+    }
+
+    .text-primary {
+        color: #0d6efd !important;
+        font-weight: 600;
+    }
+
+    .text-secondary {
+        color: #6f42c1 !important;
+        font-weight: 600;
+    }
+
+    /* Scrollbar personalizzata per la tabella */
+    .modern-table-container::-webkit-scrollbar {
+        width: 12px;
+    }
+
+    .modern-table-container::-webkit-scrollbar-track {
+        background: linear-gradient(135deg, #f1f3f4, #e8eaed);
+        border-radius: 6px;
+    }
+
+    .modern-table-container::-webkit-scrollbar-thumb {
+        background: linear-gradient(135deg, #0d6efd, #0a58ca);
+        border-radius: 6px;
+        border: 2px solid #f1f3f4;
+    }
+
+    .modern-table-container::-webkit-scrollbar-thumb:hover {
+        background: linear-gradient(135deg, #0a58ca, #084298);
+        box-shadow: 0 2px 8px rgba(13, 110, 253, 0.3);
+    }
+
+    /* Effetti per tooltip migliorati */
+    [title] {
+        cursor: help;
+        position: relative;
+    }
+
+    /* Loading e no-data styling migliorato */
+    .text-center.py-5 {
+        background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+        border-radius: 16px;
+        margin: 20px 0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+    }
+
+    .spinner-border {
+        width: 3rem;
+        height: 3rem;
+        border-width: 0.3em;
+    }
+</style>

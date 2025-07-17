@@ -1,0 +1,95 @@
+@using System.Text.Json
+@using System.Text.Json.Serialization
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicRules
+@using Microsoft.EntityFrameworkCore.Metadata.Builders
+@inherits DynamicSpaceComponentBase
+
+<Validations @ref="_validations" Mode="ValidationMode.Auto" StatusChanged="@OnStatusChanged">
+    @if (Entity != null && DynamicAttributes != null && DynamicRules != null)
+    {
+        <div>
+            <h3>@Entity.Name</h3>
+            <p>@Entity.Description</p>
+            <div class="row">
+                @foreach (var entityAttribute in Entity.Attributes.OrderBy(a => a.Order))
+                {
+                    var attributes = DynamicAttributes.FirstOrDefault(x => x.Id == entityAttribute.DynamicAttributeId);
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">@attributes.Name</label>
+                        @{
+                            var dynamicRule = DynamicRules.FirstOrDefault(x => x.Id == entityAttribute.DynamicRuleId);
+                            dynamicRule ??= new DynamicRuleDto();
+                        }
+                        <Validation UsePattern>
+                            @switch (attributes.Type)
+                            {
+                                case DynamicAttributeType.Navigation:
+                                    var navigationValue = JsonSerializer.Deserialize<NavSettingDto>(attributes.NavigationSettings);
+                                    <Validation Validator="@ValidateNavigation">
+                                        <BaseNavDynamicEntity NavAttribute="navigationValue" OnSelectChangedCallBack="@((string? value) => SetValue(attributes.Name, value))"></BaseNavDynamicEntity>
+                                    </Validation>
+                                    break;
+                                case DynamicAttributeType.Text:
+                                    <TextEdit Text="@(GetValue<string?>(attributes.Name))"
+                                              TextChanged="@((string? value) => SetValue(attributes.Name, value))"
+                                              Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                              Style="width:300px;">
+                                        <Feedback>
+                                            <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                        </Feedback>
+                                    </TextEdit>
+                                    break;
+
+                                case DynamicAttributeType.Number:
+                                    <NumericEdit TValue="int?"
+                                                 Value="@(GetValue<int?>(attributes.Name))"
+                                                 ValueChanged="@(value => SetValue(attributes.Name, value))"
+                                                 Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                 Style="width:300px;">
+                                        <Feedback>
+                                            <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                        </Feedback>
+                                    </NumericEdit>
+                                    break;
+
+                                case DynamicAttributeType.Float:
+                                    <NumericEdit TValue="float?"
+                                                 Value="@(GetValue<float?>(attributes.Name))"
+                                                 ValueChanged="@(value => SetValue(attributes.Name, value))"
+                                                 Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                                 Style="width:300px;">
+                                        <Feedback>
+                                            <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                        </Feedback>
+                                    </NumericEdit>
+                                    break;
+
+                                case DynamicAttributeType.Boolean:
+                                    <Check Checked="@(GetValue<bool?>(attributes.Name))"
+                                           CheckedChanged="@((bool? value) => SetValue(attributes.Name, value))"/>
+                                    break;
+
+                                case DynamicAttributeType.DateTime:
+                                    <DateEdit Date="@(GetValue<DateTime?>(attributes.Name))"
+                                              DateChanged="@((DateTime? value) => SetValue(attributes.Name, value))"
+                                              Pattern="@entityAttribute.GetCombinedPattern(dynamicRule.Rule)"
+                                              Style="width:300px;">
+                                        <Feedback>
+                                            <ValidationError>@L[entityAttribute.GetValidationMessage(dynamicRule.Rule, dynamicRule.Description)]</ValidationError>
+                                        </Feedback>
+                                    </DateEdit>
+                                    break;
+                            }
+                        </Validation>
+
+                    </div>
+                }
+            </div>
+        </div>
+    }
+    <div class="d-flex justify-content-end gap-2">
+        <Button Color="Color.Secondary" Clicked="CloseModal">@L["Cancel"]</Button>
+        <Button Color="Color.Primary" Clicked="SaveEntry">@L["Save"]</Button>
+    </div>
+</Validations>

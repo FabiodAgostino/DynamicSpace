@@ -1,0 +1,61 @@
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicEntities
+@inherits DynamicSpaceComponentBase
+@inject IDynamicEntityService DynamicEntityService
+
+<FieldLabel Class="form-label-modern">
+    <i class="fas fa-ship"></i>
+    @L["TabelNavigationSettings"]
+</FieldLabel>
+
+<Select TValue="Guid" SelectedValue="@selectedEntityId"  SelectedValueChanged="OnSelectChanged">
+    @foreach (var entity in Entities)
+    {
+        <SelectItem Value="@(entity.Id)">@entity.Name</SelectItem>
+    }
+</Select>
+
+@code {
+    protected List<DynamicEntityDto> Entities = new();
+    Guid selectedEntityId;
+    
+    [Parameter]
+    public CreateDynamicAttributeDto CurrAttribute { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEntities();
+    }
+
+    private async Task LoadEntities()
+    {
+
+        Entities = await  DynamicEntityService.GetAllDynamicEntity();
+    }
+    
+    protected override void OnParametersSet()
+    {
+        if (CurrAttribute != null && !string.IsNullOrEmpty(CurrAttribute.NavigationSettings))
+        {
+            Console.WriteLine(CurrAttribute.NavigationSettings);
+            var settings = System.Text.Json.JsonSerializer.Deserialize<NavSettingDto>(CurrAttribute.NavigationSettings);
+            selectedEntityId = Entities.FirstOrDefault(e => e.Id == settings.Entity)?.Id ?? Guid.Empty;
+        }
+    }
+
+    private void OnSelectChanged(Guid selectedValue)
+    {
+
+        var selectedEntity = Entities.FirstOrDefault(e => e.Id == selectedValue);
+        CurrAttribute.NavigationSettings = System.Text.Json.JsonSerializer.Serialize(new NavSettingDto
+        {
+            Entity = selectedEntity.Id,
+            EntityName = selectedEntity.Name,
+            IsHybrid = selectedEntity?.IsHybrid ?? false,
+            FullQualifieldName = selectedEntity.HybridTypeName,
+            NavField = "ID",
+            UIField = "Name"
+        });
+    }
+
+}

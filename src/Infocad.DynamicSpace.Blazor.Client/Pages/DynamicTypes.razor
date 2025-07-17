@@ -1,0 +1,435 @@
+@page "/dynamictypes"
+@using Infocad.DynamicSpace.DynamicTypes
+@using Volo.Abp.Application.Dtos
+@using DynamicSpace.Localization
+@using Infocad.DynamicSpace.Permissions
+@using Microsoft.AspNetCore.Authorization
+@using Volo.Abp.AspNetCore.Components.Web
+@using Volo.Abp.Authorization.Permissions
+@inject AbpBlazorMessageLocalizerHelper<DynamicSpaceResource> LH
+@inherits AbpCrudPageBase<IDynamicTypeService, DynamicTypeDto, Guid, PagedAndSortedResultRequestDto, CreateDynamicTypeDto>
+
+<div class="modern-card">
+    <div class="modern-card-header">
+        <Row Class="justify-content-between align-items-center">
+            <Column ColumnSize="ColumnSize.IsAuto">
+                <h2 class="page-title">
+                    <i class="fas fa-layer-group"></i>
+                    @L["Dynamic Types"]
+                </h2>
+            </Column>
+            <Column ColumnSize="ColumnSize.IsAuto">
+                @if (HasCreatePermission)
+                {
+                    <Button Color="Color.Light" Class="new-btn" Clicked="OpenCreateModalAsync">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        @L["NewType"]
+                    </Button>
+                }
+            </Column>
+        </Row>
+    </div>
+    <div class="modern-card-body">
+        <DataGrid TItem="DynamicTypeDto"
+                  Data="Entities"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  PageSize="PageSize"
+                  Class="modern-datagrid">
+            <DataGridColumns>
+                <DataGridEntityActionsColumn TItem="DynamicTypeDto" @ref="@EntityActionsColumn">
+                    <DisplayTemplate>
+                        <Dropdown Direction="Direction.End">
+                            <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="new-btn">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </DropdownToggle>
+                            <DropdownMenu>
+                                @if (HasUpdatePermission)
+                                {
+                                    <DropdownItem Clicked="@(() => OpenEditModalAsync(context))">
+                                        <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                    </DropdownItem>
+                                }
+                                @if (HasDeletePermission)
+                                {
+                                    <DropdownDivider />
+                                    <DropdownItem Clicked="@(() => DeleteEntityAsync(context))" Class="text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                    </DropdownItem>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+
+                <DataGridColumn TItem="DynamicTypeDto" Field="@nameof(DynamicTypeDto.Name)" Caption="@L["Name"]">
+                    <DisplayTemplate>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-cube text-primary"></i>
+                            <strong>@context.Name</strong>
+                        </div>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicTypeDto" Field="@nameof(DynamicTypeDto.Description)" Caption="@L["Description"]">
+                    <DisplayTemplate>
+                        @if (!string.IsNullOrEmpty(context.Description))
+                        {
+                            <span>@context.Description</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted font-italic">Nessuna descrizione</span>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+            </DataGridColumns>
+        </DataGrid>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<Modal @ref="@CreateModal" Class="modal-modern">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-plus-circle" style="color: white;"></i>
+                    <span style="color: white;">@L["NewType"]</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseCreateModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@CreateValidationsRef" Model="@NewEntity" ValidateOnLoad="false">
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-tag"></i>
+                                    @L["Name"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@NewEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del tipo">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@NewEntity.Description" Class="form-control-modern" Placeholder="Descrizione del tipo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseCreateModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="CreateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+<!-- Update Modal -->
+<Modal @ref="@EditModal" Class="modal-modern">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-edit" style="color: white;"></i>
+                    <span style="color: white;">@EditingEntity.Name</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseEditModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditValidationsRef" Model="@EditingEntity" ValidateOnLoad="false">
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-tag"></i>
+                                    @L["Name"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@EditingEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del tipo">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@EditingEntity.Description" Class="form-control-modern" Placeholder="Descrizione del tipo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseEditModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="UpdateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+@code {
+    public DynamicTypes()
+    {
+        LocalizationResource = typeof(DynamicSpaceResource);
+
+        CreatePolicyName = DynamicSpacePermissions.DynamicType.Create;
+        UpdatePolicyName = DynamicSpacePermissions.DynamicType.Edit;
+        DeletePolicyName = DynamicSpacePermissions.DynamicType.Delete;
+    }
+}
+
+<style>
+    .modern-card {
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border: none;
+        background-color: white;
+        margin-bottom: 1.5rem;
+    }
+
+    .modern-card-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 20px 20px 0 0;
+        padding: 20px 25px;
+        border: none;
+    }
+
+    .modern-card-body {
+        padding: 25px;
+        background: #f8f9fb;
+        border-radius: 0 0 20px 20px;
+    }
+
+    .page-title {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        color: white;
+    }
+
+    .new-btn {
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(74, 107, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 189, 0.4);
+        }
+
+    .modern-datagrid {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+        .modern-datagrid .table {
+            margin: 0;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+            .modern-datagrid .table thead th {
+                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                border: none;
+                padding: 15px 20px;
+                font-weight: 600;
+                color: #495057;
+                text-transform: uppercase;
+                font-size: 0.8rem;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+                position: relative;
+            }
+
+                .modern-datagrid .table thead th:first-child {
+                    border-top-left-radius: 16px;
+                }
+
+                .modern-datagrid .table thead th:last-child {
+                    border-top-right-radius: 16px;
+                }
+
+            .modern-datagrid .table tbody td {
+                padding: 15px 20px;
+                border-bottom: 1px solid #f1f3f4;
+                vertical-align: middle;
+            }
+
+            .modern-datagrid .table tbody tr:hover {
+                background-color: rgba(74, 107, 189, 0.05);
+                transform: scale(1.01);
+                transition: all 0.2s ease;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:first-child {
+                border-bottom-left-radius: 16px;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:last-child {
+                border-bottom-right-radius: 16px;
+            }
+
+    .modal-modern .modal-dialog {
+        max-width: 600px;
+        margin: 30px auto;
+    }
+
+    .modal-modern .modal-content {
+        border-radius: 25px;
+        border: none;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+    }
+
+    .modal-modern .modal-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border: none;
+        padding: 20px 30px;
+        border-radius: 25px 25px 0 0;
+    }
+
+        .modal-modern .modal-header h4 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+        .modal-modern .modal-header i {
+            color: white;
+        }
+
+    .modal-modern .modal-body {
+        padding: 30px;
+        background: #f8f9fb;
+    }
+
+    .modal-modern .modal-footer {
+        border: none;
+        padding: 20px 30px;
+        background: white;
+        border-radius: 0 0 25px 25px;
+    }
+
+    .form-group-modern {
+        margin-bottom: 20px;
+    }
+
+    .form-label-modern {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .form-control-modern {
+        border-radius: 12px !important;
+        border: 2px solid #e9ecef !important;
+        padding: 12px 16px !important;
+        transition: all 0.3s ease !important;
+        background: white !important;
+    }
+
+        .form-control-modern:focus {
+            border-color: #2B5A72 !important;
+            box-shadow: 0 0 0 0.2rem rgba(74, 107, 189, 0.15) !important;
+            transform: translateY(-1px) !important;
+        }
+
+    @@media (max-width: 768px) {
+        .modern-card-body {
+            padding: 15px;
+        }
+
+        .modal-modern .modal-body {
+            padding: 20px;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .new-btn {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .modern-card {
+        animation: fadeInUp 0.6s ease-out;
+    }
+</style>

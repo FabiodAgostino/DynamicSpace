@@ -1,0 +1,208 @@
+﻿@page "/totems"
+@using Infocad.DynamicSpace.Localization
+@using Infocad.DynamicSpace.Totems
+@using Volo.Abp.Application.Dtos
+@using Volo.Abp.AspNetCore.Components.Web
+@inherits AbpCrudPageBase<ITotemService, TotemDto, Guid, PagedAndSortedResultRequestDto, CreateTotemDto>
+@inject AbpBlazorMessageLocalizerHelper<DynamicSpaceResource> LH
+
+<Card>
+    <CardHeader>
+        <Row Class="justify-content-between">
+            <Column ColumnSize="ColumnSize.IsAuto">
+                <h2>Totems</h2>
+            </Column>
+            <Column ColumnSize="ColumnSize.IsAuto">
+                @if (HasCreatePermission)
+                {
+                    <Button Color="Color.Primary" Clicked="OpenCreateModalAsync">
+                        <Icon Name="IconName.Add" /> Nuovo Totem
+                    </Button>
+                }
+            </Column>
+        </Row>
+    </CardHeader>
+
+    <CardBody>
+        <DataGrid TItem="TotemDto"
+                  Data="Entities"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  PageSize="PageSize"
+                  Responsive="true">
+
+            <DataGridColumns>
+                <DataGridColumn TItem="TotemDto"
+                                Field="@nameof(TotemDto.Name)"
+                                Caption="Nome" />
+
+                <DataGridColumn TItem="TotemDto"
+                                Field="@nameof(TotemDto.Description)"
+                                Caption="Descrizione" />
+
+                <DataGridColumn TItem="TotemDto"
+                                Field="@nameof(TotemDto.X)"
+                                Caption="Posizione X" />
+
+                <DataGridColumn TItem="TotemDto"
+                                Field="@nameof(TotemDto.Y)"
+                                Caption="Posizione Y" />
+
+                <DataGridColumn TItem="TotemDto"
+                                Caption="Coordinate">
+                    <DisplayTemplate>
+                        <Badge Color="Color.Info">@context.X, @context.Y</Badge>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridEntityActionsColumn TItem="TotemDto" @ref="EntityActionsColumn">
+                   <DisplayTemplate>
+                        <Dropdown>
+                            <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="new-btn">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </DropdownToggle>
+                            <DropdownMenu>
+                                @if (HasUpdatePermission)
+                                {
+                                    <DropdownItem Clicked="@(() => OpenEditModalAsync(context))">
+                                        <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                    </DropdownItem>
+                                }
+                                @if (HasDeletePermission)
+                                {
+                                    <DropdownDivider />
+                                    <DropdownItem Clicked="@(() => DeleteEntityAsync(context))" Class="text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                    </DropdownItem>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+            </DataGridColumns>
+        </DataGrid>
+    </CardBody>
+</Card>
+
+<!-- Create Modal -->
+<Modal @ref="@CreateModal" Class="modal-modern">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-plus-circle" style="color: white;"></i>
+                    <span style="color: white;">@L["NewType"]</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseCreateModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@CreateValidationsRef" Model="@NewEntity" ValidateOnLoad="false">
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-tag"></i>
+                                    @L["Name"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@NewEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del tipo">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@NewEntity.Description" Class="form-control-modern" Placeholder="Descrizione del tipo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseCreateModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="CreateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+<!-- Update Modal -->
+<Modal @ref="@EditModal" Class="modal-modern">
+    <ModalContent IsCentered="true">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-edit" style="color: white;"></i>
+                    <span style="color: white;">@EditingEntity.Name</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseEditModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditValidationsRef" Model="@EditingEntity" ValidateOnLoad="false">
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-tag"></i>
+                                    @L["Name"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@EditingEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del tipo">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <TextEdit @bind-Text="@EditingEntity.Description" Class="form-control-modern" Placeholder="Descrizione del tipo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </TextEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseEditModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="UpdateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+

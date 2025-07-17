@@ -1,0 +1,32 @@
+﻿@page "/"
+@using Infocad.DynamicSpace.Blazor.Client.Navigation
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicTypes
+@using Microsoft.Extensions.Configuration
+@using Volo.Abp.Application.Dtos
+@inherits DynamicSpaceComponentBase
+@inject IConfiguration Configuration
+
+@if (Configuration.GetValue<bool>("EnablePowerBI"))
+{
+    <div style="height:96vh">
+        <PowerBI ItemNameParam="financials" WorkspaceNameParam="TestPowerBI2" />
+    </div>
+}
+else
+{
+    <div style="width: 100%; height: 96vh; min-height: 600px; border: none; display: block;">
+        <iframe src="https://www.descor.com/" style="width: 100%; height: 100%; min-height: 600px; border: none; display: block;" title="Homepage di Descor.com" allowfullscreen></iframe>
+    </div>
+}
+
+
+<style>
+    .lpx-content {
+        padding: 0 !important;
+        padding-left: 3.5px !important;
+        padding-right: 3.5px !important;
+    }
+</style>
+
+

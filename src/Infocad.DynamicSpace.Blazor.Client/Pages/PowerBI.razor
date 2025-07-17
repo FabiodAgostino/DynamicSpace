@@ -1,0 +1,254 @@
+﻿@using Microsoft.Extensions.Caching.Memory
+@inject IJSRuntime JSRuntime
+@inject HttpClient HttpClient
+@inject IMemoryCache MemoryCache
+@inject IHttpClientFactory HttpClientFactory
+    <div id="loader-container" class="loading-container">
+        <div class="modern-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+        </div>
+        <p class="loading-text">Caricamento...</p>
+    </div>
+
+    <div class="d-flex w-100 h-100 containerReport">
+        <div @ref="@PowerBIElement" class="d-flex w-100 h-100 powerbiElement" />
+    </div>
+
+
+
+@code {
+    [Parameter]
+    public string WorkspaceNameParam { get; set; }
+
+    [Parameter]
+    public string ItemNameParam { get; set; }
+
+    [Parameter]
+    public string ItemTypeParam { get; set; }
+
+    [Parameter]
+    public bool UseRLSParam { get; set; }
+
+    [Parameter]
+    public string SubParams { get; set; }
+
+    private ElementReference PowerBIElement;
+
+   
+
+
+
+}
+
+<script type="text/javascript">
+    var models = window['powerbi-client'].models;
+    function embedItemPowerBI(embedParams, reportContainer, parameters = null) {
+
+        if(models==null)
+        {
+            alert("PowerBI non è stato caricato correttamente, assicurati di aver inserito nella cartella script del tuo progetto il file powerbi.js.");
+            return;
+        }
+
+        if (embedParams) {
+            var type = embedParams.type;
+
+            var reportLoadConfig = {
+                type: type.toLowerCase(),
+                tokenType: models.TokenType.Embed,
+                accessToken: embedParams.embedToken.token,
+                embedUrl: embedParams.embedItems[0].embedUrl
+            };
+            var report = powerbi.embed(reportContainer, reportLoadConfig);
+            report.off("loaded");
+            report.on("loaded", async function() {
+                hideLoader();
+                await setFilters(parameters, report);
+                console.log("Report caricato con successo");
+
+            });
+
+            report.off("rendered");
+            report.on("rendered", function() {
+                console.log("Report renderizzato con successo");
+            });
+
+            report.off("error");
+            report.on("error", function(event) {
+                hideLoader();
+                console.error("Errore nel report:", event.detail);
+            });
+        }
+    }
+
+    async function setFilters(parameters, report) {
+        let filtersToApply = [];
+        if (!Array.isArray(parameters) || parameters.length === 0)
+            return;
+
+        console.log(parameters);
+        let reportFilters = [];
+        for (let param of parameters) {
+            param = JSON.parse(param);
+            let page = {};
+            let exsistingFilter = {};
+
+            if (param.pageName) {
+                const pages = await report.getPages();
+
+                page = pages.filter(page => page.displayName === param.pageName)[0];
+
+                reportFilters = await page.getFilters();
+            }
+            else {
+                reportFilters = await report.getFilters();
+            }
+            exsistingFilter = reportFilters.filter(f => f.target.column === param.column)[0];
+
+            let filter = buildPowerBIFilter(param, exsistingFilter.filterType, models);
+            if (exsistingFilter) {
+                filter.target = exsistingFilter.target;
+                if (param.pageName)
+                    await page.updateFilters(models.FiltersOperations.Replace, [filter]);
+                else
+                    await report.updateFilters(models.FiltersOperations.Replace, [filter]);
+            }
+            else {
+                alert("Non esiste alcun filtro con il nome tabella o il nome colonna indicato.")
+            }
+        }
+
+    }
+
+
+    function buildPowerBIFilter(parameter, filterType, models) {
+        switch (filterType) {
+            case models.FilterType.Advanced:
+                return buildFilterAdvanced(parameter);
+
+            case models.FilterType.Basic:
+                return buildFilterBasic(parameter);
+
+            case models.FilterType.Unknown:
+                alert("Filtro Unknown non gestito");
+                break;
+            case models.FilterType.IncludeExclude:
+                alert("Filtro IncludeExclude non gestito");
+                break;
+            case models.FilterType.RelativeDate:
+                alert("Filtro RelativeDate non gestito");
+                break;
+            case models.FilterType.TopN:
+                alert("Filtro TopN non gestito");
+                break;
+            case models.FilterType.Tuple:
+                alert("Filtro Tuple non gestito");
+                break;
+            case models.FilterType.RelativeTime:
+                alert("Filtro RelativeTime non gestito");
+                break;
+            default:
+        }
+    }
+
+    function buildFilterAdvanced(parameter) {
+        return {
+            $schema: "http://powerbi.com/product/schema#advanced",
+            target: {
+                table: parameter.table,
+                column: parameter.column,
+            },
+            logicalOperator: "And",
+            conditions: [{
+                operator: "Is",
+                value: parameter.value
+            }]
+        };
+    }
+
+    function buildFilterBasic(parameter) {
+        return {
+            $schema: "http://powerbi.com/product/schema#basic",
+            target: {
+                table: parameter.table,
+                column: parameter.column,
+            },
+            operator: "In",
+            values: [parameter.value]
+        };
+    }
+
+    function hideLoader() {
+        var loaderContainer = document.getElementById("loader-container");
+        if (loaderContainer) {
+            loaderContainer.style.display = "none";
+        }
+    }
+
+</script>
+<style>
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        gap: 20px;
+    }
+
+    .modern-spinner {
+        position: relative;
+        width: 80px;
+        height: 80px;
+    }
+
+    .spinner-ring {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border: 4px solid transparent;
+        border-top: 4px solid #2B5A72;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+        .spinner-ring:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 10px;
+            left: 10px;
+            border-top-color: #224D5E;
+            animation-duration: 1.5s;
+        }
+
+        .spinner-ring:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            top: 20px;
+            left: 20px;
+            border-top-color: #1B3D4A;
+            animation-duration: 2s;
+        }
+
+    .loading-text {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin: 0;
+        font-weight: 500;
+    }
+
+
+
+    @@keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+</style>

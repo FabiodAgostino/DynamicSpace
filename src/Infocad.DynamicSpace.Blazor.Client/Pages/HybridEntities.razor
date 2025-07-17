@@ -1,0 +1,142 @@
+﻿@page "/hybrid/{TypeName}/d"
+@using System.Reflection
+@using Infocad.DynamicSpace
+@using Infocad.DynamicSpace.Blazor.Client.Pages.Components.Hybrids
+@using Infocad.DynamicSpace.DynamicEntities
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicFormats
+@using Infocad.DynamicSpace.DynamicRules
+@using Microsoft.Extensions.DependencyInjection
+@using Volo.Abp.Application.Services
+@using System.Dynamic
+@using System.Linq
+@inherits BaseHybridComponent<object>
+
+@if (IsLoading)
+{
+    <div class="loading-container">
+        <div class="modern-spinner">
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+            <div class="spinner-ring"></div>
+        </div>
+        <p class="loading-text">Caricamento...</p>
+    </div>
+}
+else
+{
+    <ListHybridUI Entity="@DynamicEntity"
+                  Attributes="DynamicAttributes"
+                  CreateModal="@(async () => await OpenCreateModal())"
+                  EditModal="@(async (object hybridInstance) => await OpenEditModal(hybridInstance))"
+                  DeleteEntity="@(async (Guid id) => await DeleteEntity(id))"
+                  Items="@Items"
+                  DtoType="DtoType"
+                  BaseName="@_baseName"
+                  Formats="DynamicFormats" />
+}
+
+<Modal @ref="CreateModal" Class="modal-modern">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (DynamicEntity != null && DynamicAttributes != null && DynamicRules != null && !string.IsNullOrEmpty(DtoType?.AssemblyQualifiedName))
+            {
+                <CreateHybridUI Entity="@DynamicEntity"
+                                DynamicAttributes="@DynamicAttributes"
+                                DynamicRules="@DynamicRules"
+                                HybridTypeAssemblyQualifiedName="@DtoType.AssemblyQualifiedName"
+                                Save="SaveNewEntity"
+                                Close="CloseCreateModal" />
+            }
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+<Modal @ref="EditModal" Class="modal-modern">
+    <ModalContent Centered Size="ModalSize.Large">
+        <ModalHeader>
+            <CloseButton />
+        </ModalHeader>
+        <ModalBody>
+            @if (DynamicEntity != null && DynamicAttributes != null && DynamicRules != null &&
+                        !string.IsNullOrEmpty(DtoType?.AssemblyQualifiedName) && SelectedItem != null)
+            {
+                <UpdateHybridUI Entity="@DynamicEntity"
+                                DynamicAttributes="@DynamicAttributes"
+                                DynamicRules="@DynamicRules"
+                                HybridTypeAssemblyQualifiedName="@DtoType.AssemblyQualifiedName"
+                                ExistingData="@SelectedItem"
+                                Update="UpdateEntity"
+                                Close="CloseEditModal" />
+            }
+        </ModalBody>
+    </ModalContent>
+</Modal>
+
+<style>
+    .loading-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        gap: 20px;
+    }
+
+    .modern-spinner {
+        position: relative;
+        width: 80px;
+        height: 80px;
+    }
+
+    .spinner-ring {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+        border: 4px solid transparent;
+        border-top: 4px solid #2B5A72;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+        .spinner-ring:nth-child(2) {
+            width: 60px;
+            height: 60px;
+            top: 10px;
+            left: 10px;
+            border-top-color: #224D5E;
+            animation-duration: 1.5s;
+        }
+
+        .spinner-ring:nth-child(3) {
+            width: 40px;
+            height: 40px;
+            top: 20px;
+            left: 20px;
+            border-top-color: #1B3D4A;
+            animation-duration: 2s;
+        }
+
+    .loading-text {
+        font-size: 1.1rem;
+        color: #6c757d;
+        margin: 0;
+        font-weight: 500;
+    }
+
+
+
+    @@keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+</style>

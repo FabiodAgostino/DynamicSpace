@@ -1,0 +1,718 @@
+﻿@page "/dynamiccontrols"
+@using Infocad.DynamicSpace.DynamicAttributes
+@using Infocad.DynamicSpace.DynamicControls
+@using Volo.Abp.Application.Dtos
+@using DynamicSpace.Localization
+@using Infocad.DynamicSpace.Permissions
+@using Microsoft.AspNetCore.Authorization
+@using Volo.Abp.AspNetCore.Components.Web
+@using Volo.Abp.Authorization.Permissions
+@using System.Reflection
+@using Microsoft.AspNetCore.Components
+@inject AbpBlazorMessageLocalizerHelper<DynamicSpaceResource> LH
+@inherits AbpCrudPageBase<IDynamicControlService, DynamicControlDto, Guid, PagedAndSortedResultRequestDto, CreateDynamicControlDto, UpdateDynamicControlDto>
+
+<div class="modern-card">
+    <div class="modern-card-header">
+        <Row Class="justify-content-between align-items-center">
+            <Column ColumnSize="ColumnSize.IsAuto">
+                <h2 class="page-title">
+                    <i class="fas fa-cogs"></i>
+                    @L["Dynamic Controls"]
+                </h2>
+            </Column>
+            <Column ColumnSize="ColumnSize.IsAuto">
+                @if (HasCreatePermission)
+                {
+                    <Button Color="Color.Light" Class="new-btn" Clicked="OpenCreateModalAsync">
+                        <i class="fas fa-plus-circle me-2"></i>
+                        @L["NewControl"]
+                    </Button>
+                }
+            </Column>
+        </Row>
+    </div>
+    <div class="modern-card-body">
+        <DataGrid TItem="DynamicControlDto"
+                  Data="Entities"
+                  ReadData="OnDataGridReadAsync"
+                  TotalItems="TotalCount"
+                  ShowPager="true"
+                  PageSize="PageSize"
+                  Class="modern-datagrid">
+            <DataGridColumns>
+                <DataGridEntityActionsColumn TItem="DynamicControlDto" @ref="@EntityActionsColumn">
+                    <DisplayTemplate>
+                        <Dropdown Direction="Direction.End">
+                            <DropdownToggle Color="Color.Primary" Size="Size.Small" Class="new-btn">
+                                <i class="fas fa-ellipsis-v"></i>
+                            </DropdownToggle>
+                            <DropdownMenu>
+                                @if (HasUpdatePermission)
+                                {
+                                    <DropdownItem Clicked="@(() => OpenEditModalAsync(context))">
+                                        <i class="fas fa-edit me-2"></i>@L["Edit"]
+                                    </DropdownItem>
+                                }
+                                @if (HasDeletePermission)
+                                {
+                                    <DropdownDivider />
+                                    <DropdownItem Clicked="@(() => DeleteEntityAsync(context))" Class="text-danger">
+                                        <i class="fas fa-trash-alt me-2"></i>@L["Delete"]
+                                    </DropdownItem>
+                                }
+                            </DropdownMenu>
+                        </Dropdown>
+                    </DisplayTemplate>
+                </DataGridEntityActionsColumn>
+
+                <DataGridColumn TItem="DynamicControlDto" Field="@nameof(DynamicControlDto.Name)" Caption="@L["Name"]">
+                    <DisplayTemplate>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <i class="@GetTypeIcon(context.Type) text-primary"></i>
+                            <strong>@context.Name</strong>
+                        </div>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicControlDto" Field="@nameof(DynamicControlDto.Type)" Caption="@L["Type"]">
+                    <DisplayTemplate>
+                        <span class="badge @GetTypeBadgeClass(context.Type)">
+                            @L[context.Type.ToString()]
+                        </span>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicControlDto" Field="@nameof(DynamicControlDto.ComponentType)" Caption="@L["Component"]">
+                    <DisplayTemplate>
+                        <span class="component-type">
+                            @GetComponentDisplayName(context.ComponentType)
+                        </span>
+                    </DisplayTemplate>
+                </DataGridColumn>
+
+                <DataGridColumn TItem="DynamicControlDto" Field="@nameof(DynamicControlDto.Description)" Caption="@L["Description"]">
+                    <DisplayTemplate>
+                        @if (!string.IsNullOrEmpty(context.Description))
+                        {
+                            <span>@context.Description</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted font-italic">Nessuna descrizione</span>
+                        }
+                    </DisplayTemplate>
+                </DataGridColumn>
+            </DataGridColumns>
+        </DataGrid>
+    </div>
+</div>
+
+<!-- Create Modal -->
+<Modal @ref="@CreateModal" Class="modal-modern">
+    <ModalContent IsCentered="true" Size="ModalSize.Large">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-plus-circle" style="color: white;"></i>
+                    <span style="color: white;">@L["NewControl"]</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseCreateModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@CreateValidationsRef" Model="@NewEntity" ValidateOnLoad="false">
+                    <Row>
+                        <Column ColumnSize="ColumnSize.Is6">
+                            <div class="form-group-modern">
+                                <Validation MessageLocalizer="@LH.Localize">
+                                    <Field>
+                                        <FieldLabel Class="form-label-modern">
+                                            <i class="fas fa-tag"></i>
+                                            @L["Name"]
+                                        </FieldLabel>
+                                        <TextEdit @bind-Text="@NewEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del controllo">
+                                            <Feedback>
+                                                <ValidationError />
+                                            </Feedback>
+                                        </TextEdit>
+                                    </Field>
+                                </Validation>
+                            </div>
+                        </Column>
+                        <Column ColumnSize="ColumnSize.Is6">
+                            <div class="form-group-modern">
+                                <Validation MessageLocalizer="@LH.Localize">
+                                    <Field>
+                                        <FieldLabel Class="form-label-modern">
+                                            <i class="fas fa-list"></i>
+                                            @L["Type"]
+                                        </FieldLabel>
+                                        <Select TValue="DynamicAttributeType" @bind-SelectedValue="@NewEntity.Type" Class="form-control-modern">
+                                            @foreach (var type in Enum.GetValues<DynamicAttributeType>())
+                                            {
+                                                <SelectItem TValue="DynamicAttributeType" Value="@type">
+                                                    @L[type.ToString()]
+                                                </SelectItem>
+                                            }
+                                        </Select>
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </Field>
+                                </Validation>
+                            </div>
+                        </Column>
+                    </Row>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-puzzle-piece"></i>
+                                    @L["Component"]
+                                </FieldLabel>
+                                <Select TValue="string" @bind-SelectedValue="@NewEntity.ComponentType" Class="form-control-modern">
+                                    <SelectItem TValue="string" Value="String.Empty">Seleziona un componente...</SelectItem>
+                                    @foreach (var component in AvailableComponents)
+                                    {
+                                        <SelectItem TValue="string" Value="@component.AssemblyQualifiedName">
+                                            @component.DisplayName
+                                        </SelectItem>
+                                    }
+                                </Select>
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <MemoEdit @bind-Text="@NewEntity.Description" Class="form-control-modern" Rows="3" Placeholder="Descrizione del controllo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </MemoEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseCreateModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="CreateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+<!-- Update Modal -->
+<Modal @ref="@EditModal" Class="modal-modern">
+    <ModalContent IsCentered="true" Size="ModalSize.Large">
+        <Form>
+            <ModalHeader>
+                <ModalTitle>
+                    <i class="fas fa-edit" style="color: white;"></i>
+                    <span style="color: white;">@EditingEntity.Name</span>
+                </ModalTitle>
+                <CloseButton Clicked="CloseEditModalAsync" />
+            </ModalHeader>
+            <ModalBody>
+                <Validations @ref="@EditValidationsRef" Model="@EditingEntity" ValidateOnLoad="false">
+                    <Row>
+                        <Column ColumnSize="ColumnSize.Is6">
+                            <div class="form-group-modern">
+                                <Validation MessageLocalizer="@LH.Localize">
+                                    <Field>
+                                        <FieldLabel Class="form-label-modern">
+                                            <i class="fas fa-tag"></i>
+                                            @L["Name"]
+                                        </FieldLabel>
+                                        <TextEdit @bind-Text="@EditingEntity.Name" Class="form-control-modern" Placeholder="Inserisci il nome del controllo">
+                                            <Feedback>
+                                                <ValidationError />
+                                            </Feedback>
+                                        </TextEdit>
+                                    </Field>
+                                </Validation>
+                            </div>
+                        </Column>
+                        <Column ColumnSize="ColumnSize.Is6">
+                            <div class="form-group-modern">
+                                <Validation MessageLocalizer="@LH.Localize">
+                                    <Field>
+                                        <FieldLabel Class="form-label-modern">
+                                            <i class="fas fa-list"></i>
+                                            @L["Type"]
+                                        </FieldLabel>
+                                        <Select TValue="DynamicAttributeType" @bind-SelectedValue="@EditingEntity.Type" Class="form-control-modern">
+                                            @foreach (var type in Enum.GetValues<DynamicAttributeType>())
+                                            {
+                                                <SelectItem TValue="DynamicAttributeType" Value="@type">
+                                                    @L[type.ToString()]
+                                                </SelectItem>
+                                            }
+                                        </Select>
+                                        <Feedback>
+                                            <ValidationError />
+                                        </Feedback>
+                                    </Field>
+                                </Validation>
+                            </div>
+                        </Column>
+                    </Row>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-puzzle-piece"></i>
+                                    @L["Component"]
+                                </FieldLabel>
+                                <Select TValue="string" @bind-SelectedValue="@EditingEntity.ComponentType" Class="form-control-modern">
+                                    <SelectItem TValue="string" Value="String.Empty">Seleziona un componente...</SelectItem>
+                                    @foreach (var component in AvailableComponents)
+                                    {
+                                        <SelectItem TValue="string" Value="@component.AssemblyQualifiedName">
+                                            @component.DisplayName
+                                        </SelectItem>
+                                    }
+                                </Select>
+                                <Feedback>
+                                    <ValidationError />
+                                </Feedback>
+                            </Field>
+                        </Validation>
+                    </div>
+
+                    <div class="form-group-modern">
+                        <Validation MessageLocalizer="@LH.Localize">
+                            <Field>
+                                <FieldLabel Class="form-label-modern">
+                                    <i class="fas fa-info-circle"></i>
+                                    @L["Description"]
+                                </FieldLabel>
+                                <MemoEdit @bind-Text="@EditingEntity.Description" Class="form-control-modern" Rows="3" Placeholder="Descrizione del controllo (opzionale)">
+                                    <Feedback>
+                                        <ValidationError />
+                                    </Feedback>
+                                </MemoEdit>
+                            </Field>
+                        </Validation>
+                    </div>
+                </Validations>
+            </ModalBody>
+            <ModalFooter>
+                <Button Color="Color.Secondary" Clicked="CloseEditModalAsync" Class="new-btn">
+                    <i class="fas fa-times me-2"></i>
+                    @L["Cancel"]
+                </Button>
+                <Button Color="Color.Primary" Type="@ButtonType.Submit" PreventDefaultOnSubmit="true" Clicked="UpdateEntityAsync" Class="new-btn">
+                    <i class="fas fa-save me-2"></i>
+                    @L["Save"]
+                </Button>
+            </ModalFooter>
+        </Form>
+    </ModalContent>
+</Modal>
+
+@code {
+    private List<(string DisplayName, string? AssemblyQualifiedName)> AvailableComponents = new();
+
+
+    public DynamicControls()
+    {
+        LocalizationResource = typeof(DynamicSpaceResource);
+
+        CreatePolicyName = DynamicSpacePermissions.DynamicControl.Create;
+        UpdatePolicyName = DynamicSpacePermissions.DynamicControl.Edit;
+        DeletePolicyName = DynamicSpacePermissions.DynamicControl.Delete;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        LoadAvailableComponents();
+    }
+
+    private void LoadAvailableComponents()
+    {
+        try
+        {
+            var assembly = Assembly.GetAssembly(typeof(DynamicControls));
+            if (assembly != null)
+            {
+                var componentTypes = assembly.GetTypes()
+                    .Where(t => t.Namespace != null &&
+                               t.Namespace.Contains("Infocad.DynamicSpace.Blazor.Client.Pages.Controls") &&
+                               !t.IsAbstract &&
+                               t.IsPublic)
+                    .ToList();
+
+                if (componentTypes != null && componentTypes.Any())
+                {
+                    AvailableComponents =
+                         componentTypes
+                             .Select(type => (
+                                 DisplayName: type.Name,
+                                 AssemblyQualifiedName: type.AssemblyQualifiedName
+                             ))
+                             .OrderBy(c => c.DisplayName)
+                             .ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            throw ex;
+        }
+    }
+
+    private string GetComponentDisplayName(string assemblyQualifiedName)
+    {
+        if (string.IsNullOrEmpty(assemblyQualifiedName))
+            return "Non specificato";
+
+        var component = AvailableComponents.FirstOrDefault(c => c.AssemblyQualifiedName == assemblyQualifiedName);
+        return component.DisplayName ?? "Componente sconosciuto";
+    }
+
+    private string GetTypeIcon(DynamicAttributeType type)
+    {
+        return type switch
+        {
+            DynamicAttributeType.Text => "fas fa-font",
+            DynamicAttributeType.Number => "fas fa-hashtag",
+            DynamicAttributeType.Float => "fas fa-calculator",
+            DynamicAttributeType.Boolean => "fas fa-toggle-on",
+            DynamicAttributeType.DateTime => "fas fa-calendar-alt",
+            DynamicAttributeType.Navigation => "fas fa-link",
+            DynamicAttributeType.Service => "fas fa-cogs",
+            _ => "fas fa-question-circle"
+        };
+    }
+
+    private string GetTypeBadgeClass(DynamicAttributeType type)
+    {
+        return type switch
+        {
+            DynamicAttributeType.Text => "badge-text",
+            DynamicAttributeType.Number => "badge-number",
+            DynamicAttributeType.Float => "badge-float",
+            DynamicAttributeType.Boolean => "badge-boolean",
+            DynamicAttributeType.DateTime => "badge-datetime",
+            DynamicAttributeType.Navigation => "badge-navigation",
+            DynamicAttributeType.Service => "badge-service",
+            _ => "badge-default"
+        };
+    }
+}
+
+<style>
+    .modern-card {
+        border-radius: 20px;
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+        border: none;
+        background-color: white;
+        margin-bottom: 1.5rem;
+    }
+
+    .modern-card-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border-radius: 20px 20px 0 0;
+        padding: 20px 25px;
+        border: none;
+    }
+
+    .modern-card-body {
+        padding: 25px;
+        background: #f8f9fb;
+        border-radius: 0 0 20px 20px;
+    }
+
+    .page-title {
+        margin: 0;
+        font-weight: 700;
+        font-size: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        color: white;
+    }
+
+    .new-btn {
+        border-radius: 25px;
+        padding: 10px 25px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        box-shadow: 0 4px 15px rgba(74, 107, 189, 0.3);
+        transition: all 0.3s ease;
+    }
+
+        .new-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(74, 107, 189, 0.4);
+        }
+
+    .modern-datagrid {
+        background: white;
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+    }
+
+        .modern-datagrid .table {
+            margin: 0;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+            .modern-datagrid .table thead th {
+                background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+                border: none;
+                padding: 15px 20px;
+                font-weight: 600;
+                color: #495057;
+                text-transform: uppercase;
+                font-size: 0.8rem;
+                letter-spacing: 0.5px;
+                border-bottom: 2px solid #dee2e6;
+                position: relative;
+            }
+
+                .modern-datagrid .table thead th:first-child {
+                    border-top-left-radius: 16px;
+                }
+
+                .modern-datagrid .table thead th:last-child {
+                    border-top-right-radius: 16px;
+                }
+
+            .modern-datagrid .table tbody td {
+                padding: 15px 20px;
+                border-bottom: 1px solid #f1f3f4;
+                vertical-align: middle;
+            }
+
+            .modern-datagrid .table tbody tr:hover {
+                background-color: rgba(74, 107, 189, 0.05);
+                transform: scale(1.01);
+                transition: all 0.2s ease;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:first-child {
+                border-bottom-left-radius: 16px;
+            }
+
+            .modern-datagrid .table tbody tr:last-child td:last-child {
+                border-bottom-right-radius: 16px;
+            }
+
+    .modal-modern .modal-dialog {
+        max-width: 800px;
+        margin: 30px auto;
+    }
+
+    .modal-modern .modal-content {
+        border-radius: 25px;
+        border: none;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        overflow: hidden;
+    }
+
+    .modal-modern .modal-header {
+        background: linear-gradient(135deg, #2B5A72, #224D5E);
+        color: white;
+        border: none;
+        padding: 20px 30px;
+        border-radius: 25px 25px 0 0;
+    }
+
+        .modal-modern .modal-header h4 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: white;
+        }
+
+        .modal-modern .modal-header i {
+            color: white;
+        }
+
+    .modal-modern .modal-body {
+        padding: 30px;
+        background: #f8f9fb;
+    }
+
+    .modal-modern .modal-footer {
+        border: none;
+        padding: 20px 30px;
+        background: white;
+        border-radius: 0 0 25px 25px;
+    }
+
+    .form-group-modern {
+        margin-bottom: 20px;
+    }
+
+    .form-label-modern {
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .form-control-modern {
+        border-radius: 12px !important;
+        border: 2px solid #e9ecef !important;
+        padding: 12px 16px !important;
+        transition: all 0.3s ease !important;
+        background: white !important;
+    }
+
+        .form-control-modern:focus {
+            border-color: #2B5A72 !important;
+            box-shadow: 0 0 0 0.2rem rgba(74, 107, 189, 0.15) !important;
+            transform: translateY(-1px) !important;
+        }
+
+    /* Badge styles per i tipi */
+    .badge-text {
+        background: linear-gradient(135deg, #28a745, #20c997);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-number {
+        background: linear-gradient(135deg, #007bff, #0056b3);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-float {
+        background: linear-gradient(135deg, #17a2b8, #138496);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-boolean {
+        background: linear-gradient(135deg, #ffc107, #e0a800);
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-datetime {
+        background: linear-gradient(135deg, #6f42c1, #5a189a);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-navigation {
+        background: linear-gradient(135deg, #fd7e14, #e55100);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-service {
+        background: linear-gradient(135deg, #6c757d, #495057);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .badge-default {
+        background: linear-gradient(135deg, #343a40, #23272b);
+        color: white;
+        padding: 5px 12px;
+        border-radius: 15px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .component-type {
+        font-family: 'Courier New', monospace;
+        background: #f8f9fa;
+        padding: 4px 8px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        color: #495057;
+        border: 1px solid #dee2e6;
+    }
+
+    @@media (max-width: 768px) {
+        .modern-card-body {
+            padding: 15px;
+        }
+
+        .modal-modern .modal-body {
+            padding: 20px;
+        }
+
+        .page-title {
+            font-size: 1.3rem;
+        }
+
+        .new-btn {
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+    }
+
+    @@keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .modern-card {
+        animation: fadeInUp 0.6s ease-out;
+    }
+</style>
